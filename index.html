@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Compliance Manager</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .auth-tab  { flex: 1; padding: 10px; border: none; background: none; font-size: .875rem; font-weight: 600; color: var(--text-3); border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; transition: color .15s, border-color .15s; }
+    .auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .auth-panel { display: none; }
+    .auth-panel.active { display: flex; flex-direction: column; gap: 16px; }
+    .success-box { background: var(--success-bg); color: #065f46; border-radius: var(--radius); padding: 10px 14px; font-size: .85rem; display: none; }
+
+    /* Set-password screen (invite + password reset) */
+    #setpw-screen { display: none; flex-direction: column; gap: 16px; }
+    #setpw-screen.visible { display: flex; }
+    .setpw-welcome { font-size: .9rem; color: var(--text-2); margin-bottom: 4px; }
+    .setpw-name { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .strength-bar { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 4px; }
+    .strength-fill { height: 100%; width: 0; transition: width .25s, background .25s; }
+  </style>
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon">🧴</div>
+      <div>
+        <div class="logo-text">Compliance Manager</div>
+        <div class="logo-sub">Cosmetics Regulatory</div>
+      </div>
+    </div>
+
+    <div class="login-error" id="auth-error"></div>
+    <div class="success-box" id="auth-success"></div>
+
+    <!-- ── Set-password screen (shown for invite + reset links) ────────────── -->
+    <div id="setpw-screen">
+      <div>
+        <div class="setpw-name" id="setpw-title">Set your password</div>
+        <div class="setpw-welcome" id="setpw-subtitle"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setpw-pw">New password <span class="required">*</span></label>
+        <input type="password" id="setpw-pw" placeholder="Min. 8 characters" minlength="8" autocomplete="new-password"
+               oninput="updateStrength(this.value)">
+        <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="setpw-pw2">Confirm password <span class="required">*</span></label>
+        <input type="password" id="setpw-pw2" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary" id="setpw-btn" style="width:100%;justify-content:center;padding:11px;" onclick="submitSetPassword()">
+        Set password &amp; continue
+      </button>
+    </div>
+
+    <!-- ── Normal auth tabs (hidden when handling invite / reset) ──────────── -->
+    <div id="normal-auth">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="signin">Sign in</button>
+        <button class="auth-tab" data-tab="reset">Forgot password</button>
+      </div>
+
+      <!-- Sign in -->
+      <form class="auth-panel active" id="signin-panel">
+        <div class="form-group">
+          <label class="form-label" for="si-email">Email address</label>
+          <input type="email" id="si-email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="si-password">Password</label>
+          <input type="password" id="si-password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;">
+          Sign in
+        </button>
+      </form>
+
+      <!-- Forgot password -->
+      <form class="auth-panel" id="reset-panel">
+        <p style="font-size:.875rem;color:var(--text-2)">Enter your email and we'll send a password reset link.</p>
+        <div class="form-group">
+          <label class="form-label" for="r-email">Email address</label>
+          <input type="email" id="r-email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;">
+          Send reset link
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-client.js"></script>
+  <script>
+    // ── Detect invite / password-recovery token BEFORE Supabase processes URL ──
+    const _hash   = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const _search = new URLSearchParams(window.location.search);
+    const tokenType = _hash.get('type') || _search.get('type');
+    const isInvite   = tokenType === 'invite';
+    const isRecovery = tokenType === 'recovery';
+
+    // ── Listen for auth state changes ────────────────────────────────────────
+    let sessionReady = false;
+
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session && isInvite) {
+        // Invite token processed — show set-password form
+        sessionReady = true;
+        const name = session.user?.user_metadata?.full_name;
+        showSetPasswordScreen(
+          'Welcome! Set your password to continue.',
+          name ? `Hi ${name}` : ''
+        );
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Password-reset link processed
+        sessionReady = true;
+        showSetPasswordScreen('Enter a new password for your account.', '');
+      } else if (event === 'USER_UPDATED') {
+        // Password successfully set → go to app
+        window.location.href = 'dashboard.html';
+      } else if (event === 'SIGNED_IN' && session && !isInvite && !isRecovery) {
+        window.location.href = 'dashboard.html';
+      }
+    });
+
+    // ── If no special token, check existing session ───────────────────────────
+    if (!isInvite && !isRecovery) {
+      sb.auth.getSession().then(({ data: { session } }) => {
+        if (session) window.location.href = 'dashboard.html';
+      });
+    } else {
+      // Hide normal auth, show loading state while Supabase exchanges token
+      document.getElementById('normal-auth').style.display = 'none';
+      showSetPasswordScreen(
+        isInvite ? 'Welcome! Set your password to continue.' : 'Enter a new password for your account.',
+        ''
+      );
+    }
+
+    // ── Set-password screen ───────────────────────────────────────────────────
+    function showSetPasswordScreen(subtitle, title) {
+      document.getElementById('normal-auth').style.display = 'none';
+      document.getElementById('setpw-screen').classList.add('visible');
+      if (title) document.getElementById('setpw-title').textContent = title;
+      if (subtitle) document.getElementById('setpw-subtitle').textContent = subtitle;
+    }
+
+    function updateStrength(pw) {
+      const fill = document.getElementById('strength-fill');
+      let score = 0;
+      if (pw.length >= 8)  score++;
+      if (pw.length >= 12) score++;
+      if (/[A-Z]/.test(pw)) score++;
+      if (/[0-9]/.test(pw)) score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      const pct = Math.round((score / 5) * 100);
+      const color = score <= 1 ? '#ef4444' : score <= 3 ? '#f59e0b' : '#10b981';
+      fill.style.width = pct + '%';
+      fill.style.background = color;
+    }
+
+    async function submitSetPassword() {
+      clearMessages();
+      const pw  = document.getElementById('setpw-pw').value;
+      const pw2 = document.getElementById('setpw-pw2').value;
+
+      if (pw.length < 8)  { showError('Password must be at least 8 characters.'); return; }
+      if (pw !== pw2)     { showError('Passwords do not match.'); return; }
+
+      const btn = document.getElementById('setpw-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      const { error } = await sb.auth.updateUser({ password: pw });
+      if (error) {
+        showError(error.message);
+        btn.disabled = false; btn.textContent = 'Set password & continue';
+      }
+      // On success, onAuthStateChange fires USER_UPDATED → redirect to dashboard
+    }
+
+    // ── Normal tabs ───────────────────────────────────────────────────────────
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.auth-tab, .auth-panel').forEach(el => el.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-panel').classList.add('active');
+        clearMessages();
+      });
+    });
+
+    // Sign in
+    document.getElementById('signin-panel').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter;
+      btn.disabled = true; btn.textContent = 'Signing in…';
+      clearMessages();
+      const { error } = await sb.auth.signInWithPassword({
+        email:    document.getElementById('si-email').value.trim(),
+        password: document.getElementById('si-password').value,
+      });
+      if (error) { showError(error.message); btn.disabled = false; btn.textContent = 'Sign in'; }
+      // On success onAuthStateChange → SIGNED_IN → redirect
+    });
+
+    // Forgot password
+    document.getElementById('reset-panel').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      clearMessages();
+      const { error } = await sb.auth.resetPasswordForEmail(
+        document.getElementById('r-email').value.trim(),
+        { redirectTo: window.location.origin + '/index.html' }
+      );
+      if (error) { showError(error.message); }
+      else        { showSuccess('Reset link sent — check your email.'); }
+      btn.disabled = false; btn.textContent = 'Send reset link';
+    });
+
+    function showError(msg)   { const e = document.getElementById('auth-error');   e.textContent = msg; e.style.display = 'block'; document.getElementById('auth-success').style.display = 'none'; }
+    function showSuccess(msg) { const e = document.getElementById('auth-success'); e.textContent = msg; e.style.display = 'block'; document.getElementById('auth-error').style.display   = 'none'; }
+    function clearMessages()  { document.getElementById('auth-error').style.display = 'none'; document.getElementById('auth-success').style.display = 'none'; }
+  </script>
+</body>
+</html>

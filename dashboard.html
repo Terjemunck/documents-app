@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Compliance Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🧴</div>
+      <div>
+        <div class="logo-text">Compliance Mgr</div>
+        <div class="logo-sub">Cosmetics Regulatory</div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <span class="nav-label">Compliance</span>
+      <a href="dashboard.html" class="nav-link active">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <span class="nav-label admin-only">Admin</span>
+      <a href="admin.html" class="nav-link admin-only">
+        <span class="nav-icon">⚙️</span> Manage
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="nav-user" onclick="openProfileEditor()" style="cursor:pointer" title="Edit profile">Loading…</div>
+          <div class="user-role" id="nav-role">User</div>
+        </div>
+        <button class="btn-signout" onclick="signOut()" title="Sign out">⏏</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Compliance Dashboard</h1>
+        <p>Overview of all products and their regulatory status across markets.</p>
+      </div>
+      <div class="page-header-actions">
+        <div class="search-bar">
+          <input type="text" id="search" placeholder="Search products…">
+        </div>
+        <button class="btn btn-primary admin-only" id="btn-add-product">+ Add Product</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Stats -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Products</div>
+          <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="stat-card stat-success">
+          <div class="stat-label">Fully Complete</div>
+          <div class="stat-value" id="stat-complete">—</div>
+        </div>
+        <div class="stat-card stat-warning">
+          <div class="stat-label">Incomplete</div>
+          <div class="stat-value" id="stat-incomplete">—</div>
+        </div>
+        <div class="stat-card stat-danger">
+          <div class="stat-label">Outdated</div>
+          <div class="stat-value" id="stat-outdated">—</div>
+        </div>
+      </div>
+
+      <!-- Products table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Products</span>
+          <span id="product-count" class="text-muted text-sm"></span>
+        </div>
+        <div class="table-wrap" id="products-table">
+          <div class="loader-wrap"><div class="spinner"></div><p>Loading products…</p></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Add Product Modal -->
+<template id="modal-add-product">
+  <div class="form-group">
+    <label class="form-label">Product Name <span class="required">*</span></label>
+    <input type="text" id="new-name" placeholder="e.g. Hydrating Face Cream" required>
+  </div>
+  <div class="form-group">
+    <label class="form-label">SKU / Product Code</label>
+    <input type="text" id="new-sku" placeholder="e.g. HFC-001">
+    <span class="form-hint">Optional internal reference code.</span>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Description</label>
+    <textarea id="new-desc" rows="2" placeholder="Brief product description…"></textarea>
+  </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script>
+let allRows = [];
+
+async function init() {
+  const session = await requireAuth();
+  if (!session) return;
+
+  const profile = await getUserProfile();
+  if (profile) {
+    document.getElementById('nav-user').textContent = profile.full_name || profile.id.slice(0, 8);
+    document.getElementById('nav-role').textContent = profile.role === 'admin' ? 'Administrator' : 'User';
+    document.getElementById('user-avatar').textContent = (profile.full_name || 'U')[0].toUpperCase();
+    if (profile.role === 'admin') {
+      document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('admin-only'));
+    }
+  }
+
+  await loadDashboard();
+  setupSearch();
+  setupAddProduct();
+}
+
+async function loadDashboard() {
+  const tableEl = document.getElementById('products-table');
+  showLoader(tableEl, 'Loading compliance data…');
+
+  try {
+    const rows = await getComplianceSummary();
+    allRows = rows;
+    renderStats(rows);
+    renderTable(rows);
+  } catch (err) {
+    tableEl.innerHTML = `<div class="empty-state"><p class="text-muted">Failed to load: ${err.message}</p></div>`;
+  }
+}
+
+function renderStats(rows) {
+  // Group by product: a product is "complete" if BOTH markets are complete
+  const products = {};
+  rows.forEach(r => {
+    if (!products[r.product_id]) products[r.product_id] = [];
+    products[r.product_id].push(r.compliance_status);
+  });
+  const ids = Object.keys(products);
+  let complete = 0, incomplete = 0, outdated = 0;
+  ids.forEach(id => {
+    const statuses = products[id];
+    if (statuses.some(s => s === 'outdated'))    outdated++;
+    else if (statuses.some(s => s === 'incomplete' || s === 'unchecked')) incomplete++;
+    else complete++;
+  });
+  document.getElementById('stat-total').textContent     = ids.length;
+  document.getElementById('stat-complete').textContent  = complete;
+  document.getElementById('stat-incomplete').textContent = incomplete;
+  document.getElementById('stat-outdated').textContent  = outdated;
+}
+
+function renderTable(rows) {
+  const tableEl = document.getElementById('products-table');
+
+  // Group rows by product
+  const byProduct = {};
+  rows.forEach(r => {
+    if (!byProduct[r.product_id]) byProduct[r.product_id] = { name: r.product_name, sku: r.sku, id: r.product_id, markets: {} };
+    byProduct[r.product_id].markets[r.market_code] = r;
+  });
+
+  const products = Object.values(byProduct);
+  document.getElementById('product-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
+
+  if (products.length === 0) {
+    tableEl.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <h3>No products yet</h3>
+        <p>Add your first product to start tracking compliance.</p>
+      </div>`;
+    return;
+  }
+
+  const html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>SKU</th>
+          <th>EU Status</th>
+          <th style="padding-left:0">
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+              EU Docs
+            </span>
+          </th>
+          <th>Middle East Status</th>
+          <th>ME Docs</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="products-tbody">
+        ${products.map(p => renderProductRow(p)).join('')}
+      </tbody>
+    </table>`;
+  tableEl.innerHTML = html;
+}
+
+function renderProductRow(p) {
+  const eu = p.markets['EU'];
+  const me = p.markets['ME'];
+  return `
+    <tr>
+      <td class="td-name">${p.name}</td>
+      <td class="td-sku">${p.sku || '—'}</td>
+      <td>${eu ? complianceBadge(eu.compliance_status) : '<span class="badge badge-neutral">—</span>'}</td>
+      <td>${eu ? `<span class="text-sm text-muted">${eu.docs_present}/${eu.total_required}</span>` : '—'}</td>
+      <td>${me ? complianceBadge(me.compliance_status) : '<span class="badge badge-neutral">—</span>'}</td>
+      <td>${me ? `<span class="text-sm text-muted">${me.docs_present}/${me.total_required}</span>` : '—'}</td>
+      <td>
+        <a href="product.html?id=${p.id}" class="btn btn-secondary btn-sm">View →</a>
+      </td>
+    </tr>`;
+}
+
+function setupSearch() {
+  document.getElementById('search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = allRows.filter(r =>
+      r.product_name.toLowerCase().includes(q) ||
+      (r.sku || '').toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  });
+}
+
+function setupAddProduct() {
+  document.getElementById('btn-add-product')?.addEventListener('click', () => {
+    const tmpl = document.getElementById('modal-add-product').innerHTML;
+    openModal({
+      title: 'Add New Product',
+      body: tmpl,
+      confirmText: 'Add Product',
+      confirmCls: 'btn-primary',
+      onConfirm: async (overlay) => {
+        const name = document.getElementById('new-name').value.trim();
+        const sku  = document.getElementById('new-sku').value.trim();
+        const desc = document.getElementById('new-desc').value.trim();
+        if (!name) { showToast('Product name is required.', 'error'); return; }
+        const btn = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          await createProduct({ name, sku, description: desc });
+          overlay.remove();
+          showToast('Product added successfully.');
+          await loadDashboard();
+        } catch (err) {
+          showToast(err.message, 'error');
+          btn.disabled = false; btn.textContent = 'Add Product';
+        }
+      }
+    });
+  });
+}
+
+init();
+</script>
+</body>
+</html>

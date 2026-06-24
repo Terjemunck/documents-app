@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product — Compliance Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🧴</div>
+      <div>
+        <div class="logo-text">Compliance Mgr</div>
+        <div class="logo-sub">Cosmetics Regulatory</div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <span class="nav-label">Compliance</span>
+      <a href="dashboard.html" class="nav-link">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <span class="nav-label admin-only">Admin</span>
+      <a href="admin.html" class="nav-link admin-only">
+        <span class="nav-icon">⚙️</span> Manage
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="nav-user" onclick="openProfileEditor()" style="cursor:pointer" title="Edit profile">Loading…</div>
+          <div class="user-role" id="nav-role">User</div>
+        </div>
+        <button class="btn-signout" onclick="signOut()" title="Sign out">⏏</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header" id="page-header">
+      <div class="page-header-left">
+        <div class="breadcrumb">
+          <a href="dashboard.html">Dashboard</a>
+          <span class="sep">›</span>
+          <span id="breadcrumb-name">Product</span>
+        </div>
+        <h1 id="product-title">Loading…</h1>
+        <p id="product-subtitle" class="text-muted" style="font-size:.85rem;margin-top:2px;"></p>
+      </div>
+      <div class="page-header-actions" id="header-actions"></div>
+    </div>
+
+    <div class="page-body" id="page-body">
+      <div class="loader-wrap"><div class="spinner"></div><p>Loading product…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Document Modal (populated dynamically) -->
+<div id="upload-modal-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script>
+const params     = new URLSearchParams(window.location.search);
+const productId  = params.get('id');
+
+let product      = null;
+let markets      = [];
+let requirements = [];
+let documents    = [];
+let overrides    = [];
+let attachments  = [];
+
+async function init() {
+  if (!productId) { window.location.href = 'dashboard.html'; return; }
+  const session = await requireAuth();
+  if (!session) return;
+
+  const profile = await getUserProfile();
+  if (profile) {
+    document.getElementById('nav-user').textContent     = profile.full_name || profile.id.slice(0, 8);
+    document.getElementById('nav-role').textContent     = profile.role === 'admin' ? 'Administrator' : 'User';
+    document.getElementById('user-avatar').textContent  = (profile.full_name || 'U')[0].toUpperCase();
+    if (profile.role === 'admin') {
+      document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('admin-only'));
+    }
+  }
+
+  await loadPage();
+}
+
+async function loadPage() {
+  const bodyEl = document.getElementById('page-body');
+  try {
+    [product, markets, requirements, documents, overrides, attachments] = await Promise.all([
+      getProduct(productId),
+      getMarkets(),
+      getMarketRequirements(),
+      getProductDocuments(productId),
+      getProductOverrides(productId),
+      getProductAttachments(productId),
+    ]);
+
+    document.getElementById('product-title').textContent    = product.name;
+    document.getElementById('breadcrumb-name').textContent  = product.name;
+    document.getElementById('product-subtitle').textContent = product.sku ? `SKU: ${product.sku}` : '';
+    document.title = `${product.name} — Compliance Manager`;
+
+    const adminCheck = await isAdmin();
+    if (adminCheck) {
+      document.getElementById('header-actions').innerHTML = `
+        <button class="btn btn-secondary" onclick="openEditProduct()">Edit Product</button>`;
+    }
+
+    renderBody(bodyEl);
+  } catch (err) {
+    bodyEl.innerHTML = `<div class="empty-state"><p class="text-muted">Error: ${err.message}</p></div>`;
+  }
+}
+
+function renderBody(bodyEl) {
+  bodyEl.innerHTML = markets.map(m => renderMarketSection(m)).join('');
+}
+
+function renderMarketSection(market) {
+  const reqs = requirements.filter(r => r.market_id === market.id);
+  const slots = reqs.map(req => {
+    const doc = documents.find(d =>
+      d.market_id === market.id &&
+      d.document_type_id === req.document_type_id &&
+      d.status !== 'pending_upload'
+    );
+    return renderDocSlot(req, doc, market);
+  });
+  return `
+    <div class="market-section">
+      <div class="market-heading">
+        <h2>${market.name}</h2>
+        <span class="market-tag">${market.code}</span>
+      </div>
+      <div class="doc-grid">${slots.join('')}</div>
+    </div>`;
+}
+
+function renderDocSlot(req, doc, market) {
+  const dt       = req.document_types;
+  const optional = !req.is_required;
+
+  // Check if deactivated (N/A)
+  const override = overrides.find(o =>
+    o.market_id === market.id && o.document_type_id === dt.id && !o.is_active
+  );
+  if (override) return renderDeactivatedSlot(dt, market, override);
+
+  let slotClass = 'slot-missing';
+  if (optional && !doc)                slotClass = 'slot-optional';
+  else if (doc?.status === 'current')  slotClass = 'slot-current';
+  else if (doc?.status === 'outdated') slotClass = 'slot-outdated';
+  else if (doc?.status === 'under_review') slotClass = 'slot-outdated';
+
+  const slotAttachments = attachments.filter(a =>
+    a.market_id === market.id && a.document_type_id === dt.id
+  );
+
+  // Safely escape names for HTML attributes
+  const safeMarket = market.id;
+  const safeDt     = dt.id;
+  const safeDtName = escAttr(dt.name);
+
+  const headerHtml = `
+    <div class="doc-slot-header">
+      <div>
+        <div class="doc-slot-name">${escHtml(dt.name)}</div>
+        <div class="doc-slot-code">${escHtml(dt.code)}</div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
+        ${optional ? '<span class="optional-tag">Optional</span>' : ''}
+        ${doc ? docStatusBadge(doc.status) : (optional ? '' : '<span class="badge badge-danger">Missing</span>')}
+        <div class="slot-menu-wrap">
+          <button class="btn-slot-menu" onclick="toggleSlotMenu(event,'${safeMarket}','${safeDt}')" title="More options">⋯</button>
+          <div class="slot-menu" id="slotmenu-${safeMarket}-${safeDt}">
+            <button onclick="confirmDeactivate('${safeMarket}','${safeDt}','${safeDtName}')">Mark as N/A</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  let bodyHtml;
+  if (doc) {
+    bodyHtml = `
+      <div class="doc-slot-body">
+        <div class="doc-file-info">
+          <div class="doc-file-name">
+            <span class="file-icon">📄</span>
+            <span title="${escAttr(doc.file_name)}">${truncate(escHtml(doc.file_name), 38)}</span>
+          </div>
+          <div class="doc-meta">
+            <span class="doc-meta-item"><strong>Uploaded:</strong> ${formatDate(doc.upload_date)}</span>
+            <span class="doc-meta-item"><strong>v${escHtml(doc.version)}</strong></span>
+            ${doc.file_size ? `<span class="doc-meta-item">${formatFileSize(doc.file_size)}</span>` : ''}
+            ${doc.review_date ? `<span class="doc-meta-item"><strong>Review:</strong> ${formatDate(doc.review_date)}</span>` : ''}
+          </div>
+          ${doc.notes ? `<div class="text-sm text-muted mt-8" style="font-style:italic">${escHtml(doc.notes)}</div>` : ''}
+        </div>
+      </div>`;
+  } else {
+    bodyHtml = `
+      <div class="doc-slot-body">
+        <div class="doc-slot-empty">
+          <span class="empty-icon">📂</span>
+          <span>${optional ? 'No document uploaded (optional)' : 'No document uploaded'}</span>
+        </div>
+      </div>`;
+  }
+
+  const actionsHtml = `
+    <div class="doc-slot-actions">
+      ${doc ? `
+        <button class="btn btn-secondary btn-sm" onclick="downloadDoc('${doc.file_path}','${escAttr(doc.file_name)}')">⬇ Download</button>
+        <button class="btn btn-secondary btn-sm" onclick="openUpload('${safeMarket}','${safeDt}','${safeDtName}','${escAttr(dt.code)}',true)">↩ Replace</button>
+        <button class="btn btn-secondary btn-sm" id="ai-btn-${doc.id}" onclick="runAiCheck('${doc.id}','${safeDtName}')">🤖 AI Check</button>
+      ` : `
+        <button class="btn btn-primary btn-sm" onclick="openUpload('${safeMarket}','${safeDt}','${safeDtName}','${escAttr(dt.code)}',false)">⬆ Upload</button>
+      `}
+    </div>
+    ${doc ? `<div class="ai-result" id="ai-result-${doc.id}" style="display:none"></div>` : ''}`;
+
+  const attachHtml = renderAttachmentSection(safeMarket, safeDt, slotAttachments);
+
+  return `
+    <div class="doc-slot ${slotClass}" id="slot-${safeMarket}-${safeDt}">
+      ${headerHtml}${bodyHtml}${actionsHtml}${attachHtml}
+    </div>`;
+}
+
+function renderDeactivatedSlot(dt, market, override) {
+  return `
+    <div class="doc-slot slot-na" id="slot-${market.id}-${dt.id}">
+      <div class="slot-na-bar">
+        <div class="slot-na-info">
+          <span class="doc-slot-name">${escHtml(dt.name)}</span>
+          <span class="badge badge-neutral" style="margin-left:6px">N/A</span>
+          ${override.reason ? `<span class="text-muted" style="font-size:.8rem;margin-left:8px">— ${escHtml(override.reason)}</span>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="doReactivate('${market.id}','${dt.id}')">Reactivate</button>
+      </div>
+    </div>`;
+}
+
+function renderAttachmentSection(marketId, dtId, files) {
+  const count    = files.length;
+  const sectionId = `attach-${marketId}-${dtId}`;
+  const listId    = `attach-list-${marketId}-${dtId}`;
+
+  const fileListHtml = count > 0
+    ? files.map(f => `
+        <div class="attach-item">
+          <span class="attach-icon">📄</span>
+          <span class="attach-path" title="${escAttr(f.relative_path)}">${escHtml(f.relative_path)}</span>
+          <span class="attach-size">${formatFileSize(f.file_size)}</span>
+          <button class="btn-attach-dl" onclick="downloadDoc('${f.file_path}','${escAttr(f.file_name)}')" title="Download">⬇</button>
+          <button class="btn-attach-del" onclick="deleteAttachmentItem('${f.id}','${f.file_path}','${marketId}','${dtId}')" title="Delete">✕</button>
+        </div>`).join('')
+    : '<div class="attach-empty">No supporting files uploaded.</div>';
+
+  return `
+    <div class="attach-section" id="${sectionId}">
+      <div class="attach-header" onclick="toggleAttachSection('${sectionId}')">
+        <span class="attach-title">📁 Supporting Files${count > 0 ? ` <span class="attach-count">${count}</span>` : ''}</span>
+        <span class="attach-chevron">▸</span>
+        <button class="btn btn-ghost btn-xs attach-upload-btn"
+          onclick="event.stopPropagation();triggerFolderUpload('${marketId}','${dtId}')"
+          title="Upload folder or files">⬆ Upload Files</button>
+        ${count > 0 ? `<button class="btn btn-ghost btn-xs attach-delete-all-btn"
+          onclick="event.stopPropagation();deleteAllAttachments('${marketId}','${dtId}')"
+          title="Delete all supporting files">🗑 Delete All</button>` : ''}
+      </div>
+      <div class="attach-body" id="${listId}" style="display:none">${fileListHtml}</div>
+      <input type="file" id="folder-input-${marketId}-${dtId}"
+        webkitdirectory directory multiple style="display:none"
+        onchange="handleFolderUpload(this,'${marketId}','${dtId}')">
+    </div>`;
+}
+
+function toggleAttachSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  const body    = section.querySelector('.attach-body');
+  const chevron = section.querySelector('.attach-chevron');
+  const open    = body.style.display !== 'none';
+  body.style.display    = open ? 'none' : 'block';
+  chevron.textContent   = open ? '▸' : '▾';
+}
+
+function truncate(str, n) {
+  if (!str) return '';
+  return str.length > n ? str.slice(0, n - 1) + '…' : str;
+}
+
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─── Slot ⋯ menu ──────────────────────────────────────────────────────────────
+
+function toggleSlotMenu(e, marketId, dtId) {
+  e.stopPropagation();
+  const menu = document.getElementById(`slotmenu-${marketId}-${dtId}`);
+  const open = menu.classList.contains('open');
+  document.querySelectorAll('.slot-menu.open').forEach(m => m.classList.remove('open'));
+  if (!open) menu.classList.add('open');
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.slot-menu.open').forEach(m => m.classList.remove('open'));
+});
+
+function confirmDeactivate(marketId, dtId, dtName) {
+  document.querySelectorAll('.slot-menu.open').forEach(m => m.classList.remove('open'));
+  openModal({
+    title: `Mark as N/A — ${dtName}`,
+    body: `
+      <p class="text-muted" style="margin-bottom:12px">This slot will be hidden from the compliance dashboard and excluded from completeness calculations.</p>
+      <div class="form-group">
+        <label class="form-label">Reason (optional)</label>
+        <input type="text" id="na-reason" placeholder="e.g. Not applicable for this formula">
+      </div>`,
+    confirmText: 'Mark as N/A',
+    confirmCls: 'btn-warning',
+    onConfirm: async (overlay) => {
+      const reason = document.getElementById('na-reason').value.trim();
+      const btn    = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await deactivateSlot(productId, marketId, dtId, reason);
+        overlay.remove();
+        showToast('Slot marked as N/A.');
+        await loadPage();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false; btn.textContent = 'Mark as N/A';
+      }
+    }
+  });
+}
+
+async function doReactivate(marketId, dtId) {
+  try {
+    await reactivateSlot(productId, marketId, dtId);
+    showToast('Slot reactivated.');
+    await loadPage();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── Folder / file upload ──────────────────────────────────────────────────────
+
+function triggerFolderUpload(marketId, dtId) {
+  document.getElementById(`folder-input-${marketId}-${dtId}`).click();
+}
+
+async function handleFolderUpload(input, marketId, dtId) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+
+  const sectionId = `attach-${marketId}-${dtId}`;
+  const body      = document.getElementById(`attach-list-${marketId}-${dtId}`);
+  body.style.display = 'block';
+  document.querySelector(`#${sectionId} .attach-chevron`).textContent = '▾';
+  body.innerHTML = `<div class="attach-upload-progress">Uploading 0 / ${files.length}…</div>`;
+
+  let done = 0;
+  const errors = [];
+  for (const file of files) {
+    const relativePath = file.webkitRelativePath || file.name;
+    try {
+      await uploadAttachmentFile({ productId, marketId, documentTypeId: dtId, file, relativePath });
+      done++;
+      body.innerHTML = `<div class="attach-upload-progress">Uploading ${done} / ${files.length}…</div>`;
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+
+  input.value = '';
+  if (errors.length) showToast(`${done} uploaded, ${errors.length} failed.`, 'error');
+  else showToast(`${done} file(s) uploaded.`);
+  await loadPage();
+}
+
+async function deleteAttachmentItem(id, filePath, marketId, dtId) {
+  if (!confirm('Delete this supporting file?')) return;
+  try {
+    await deleteAttachment(id, filePath);
+    showToast('File deleted.');
+    await loadPage();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteAllAttachments(marketId, dtId) {
+  const files = attachments.filter(a => a.market_id === marketId && a.document_type_id === dtId);
+  if (!files.length) return;
+  if (!confirm(`Delete all ${files.length} supporting file(s) for this slot?`)) return;
+  try {
+    for (const f of files) await deleteAttachment(f.id, f.file_path);
+    showToast(`${files.length} file(s) deleted.`);
+    await loadPage();
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
+  }
+}
+
+// ─── Upload modal ──────────────────────────────────────────────────────────────
+
+function openUpload(marketId, docTypeId, docTypeName, docTypeCode, isReplace) {
+  const root = document.getElementById('upload-modal-root');
+  root.innerHTML = `
+    <div class="modal-overlay" id="upload-overlay">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>${isReplace ? 'Replace Document' : 'Upload Document'} — ${escHtml(docTypeName)}</h3>
+          <button class="modal-close" onclick="document.getElementById('upload-overlay').remove()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">File <span class="required">*</span></label>
+            <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
+              <div class="drop-icon">📎</div>
+              <div class="drop-text">Click to choose a file or drag & drop</div>
+              <div class="drop-hint">PDF or Word document</div>
+              <div class="file-selected" id="file-selected-name" style="display:none"></div>
+            </div>
+            <input type="file" id="file-input" accept=".pdf,.doc,.docx" style="display:none">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Version</label>
+              <input type="text" id="up-version" value="1.0" placeholder="e.g. 1.0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Review Date</label>
+              <input type="date" id="up-review" min="${new Date().toISOString().slice(0,10)}">
+              <span class="form-hint">When should this document be reviewed?</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Expiry Date</label>
+              <input type="date" id="up-expiry">
+            </div>
+            <div class="form-group"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <textarea id="up-notes" rows="2" placeholder="Optional notes about this document…"></textarea>
+          </div>
+          ${isReplace ? '<p class="text-sm text-muted" style="padding:8px 0">⚠️ The existing document will be archived and replaced.</p>' : ''}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="document.getElementById('upload-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary" id="upload-confirm">Upload</button>
+        </div>
+      </div>
+    </div>`;
+
+  setupFileDrop();
+  document.getElementById('upload-confirm').addEventListener('click', () => doUpload(marketId, docTypeId));
+}
+
+function setupFileDrop() {
+  const input    = document.getElementById('file-input');
+  const dropZone = document.getElementById('file-drop');
+
+  input.addEventListener('change', () => showSelectedFile(input.files[0]));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
+      showSelectedFile(file);
+    }
+  });
+}
+
+function showSelectedFile(file) {
+  if (!file) return;
+  const nameEl = document.getElementById('file-selected-name');
+  nameEl.textContent = `✓ ${file.name} (${formatFileSize(file.size)})`;
+  nameEl.style.display = 'block';
+  document.querySelector('.drop-text').style.display = 'none';
+}
+
+async function doUpload(marketId, docTypeId) {
+  const file = document.getElementById('file-input').files[0];
+  if (!file) { showToast('Please select a file.', 'error'); return; }
+
+  const btn = document.getElementById('upload-confirm');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+
+  try {
+    await uploadDocument({
+      productId, marketId, documentTypeId: docTypeId, file,
+      version:    document.getElementById('up-version').value.trim() || '1.0',
+      reviewDate: document.getElementById('up-review').value  || null,
+      expiryDate: document.getElementById('up-expiry').value  || null,
+      notes:      document.getElementById('up-notes').value.trim() || null,
+    });
+    document.getElementById('upload-overlay').remove();
+    showToast('Document uploaded successfully.');
+    await loadPage();
+  } catch (err) {
+    showToast('Upload failed: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Upload';
+  }
+}
+
+// ─── AI check ─────────────────────────────────────────────────────────────────
+
+async function runAiCheck(documentId, docTypeName) {
+  const btn    = document.getElementById(`ai-btn-${documentId}`);
+  const result = document.getElementById(`ai-result-${documentId}`);
+
+  btn.disabled = true; btn.textContent = '🤖 Checking…';
+  result.style.display = 'none';
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch('/.netlify/functions/check-compliance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+
+    const json = await resp.json();
+    if (!resp.ok || json.error) throw new Error(json.error || 'Check failed');
+
+    const r = json.result;
+    const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[r.status] || 'badge-neutral';
+
+    result.innerHTML = `
+      <div class="ai-result-inner">
+        <div class="ai-result-header">
+          <span class="badge ${statusClass}" style="text-transform:uppercase">${r.status}</span>
+          <span class="text-sm text-muted">AI compliance check</span>
+        </div>
+        <p class="ai-summary">${escHtml(r.summary)}</p>
+        ${r.issues && r.issues !== 'None identified.' ? `<div class="ai-section"><strong>Issues</strong><p>${escHtml(r.issues)}</p></div>` : ''}
+        ${r.recommendations && r.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(r.recommendations)}</p></div>` : ''}
+        <p class="ai-disclaimer">${escHtml(r.disclaimer)}</p>
+      </div>`;
+    result.style.display = 'block';
+    showToast('AI check complete.');
+  } catch (err) {
+    showToast('AI check failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🤖 AI Check';
+  }
+}
+
+// ─── Misc ──────────────────────────────────────────────────────────────────────
+
+async function downloadDoc(filePath, fileName) {
+  try {
+    const url = await getDownloadUrl(filePath);
+    const a   = document.createElement('a');
+    a.href = url; a.download = fileName; a.click();
+  } catch (err) {
+    showToast('Download failed: ' + err.message, 'error');
+  }
+}
+
+function openEditProduct() {
+  openModal({
+    title: 'Edit Product',
+    body: `
+      <div class="form-group">
+        <label class="form-label">Product Name <span class="required">*</span></label>
+        <input type="text" id="edit-name" value="${escAttr(product.name)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SKU</label>
+        <input type="text" id="edit-sku" value="${escAttr(product.sku || '')}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="edit-desc" rows="2">${escHtml(product.description || '')}</textarea>
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name = document.getElementById('edit-name').value.trim();
+      if (!name) { showToast('Name is required.', 'error'); return; }
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await updateProduct(productId, {
+          name,
+          sku:         document.getElementById('edit-sku').value.trim() || null,
+          description: document.getElementById('edit-desc').value.trim() || null,
+        });
+        overlay.remove(); showToast('Product updated.'); await loadPage();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false; btn.textContent = 'Save';
+      }
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
