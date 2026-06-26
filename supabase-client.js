@@ -38,6 +38,11 @@ async function isAdmin() {
   return profile?.role === 'admin';
 }
 
+async function getOrgId() {
+  const profile = await getUserProfile();
+  return profile?.org_id || null;
+}
+
 async function signOut() {
   _profileCache = null;
   await sb.auth.signOut();
@@ -61,10 +66,11 @@ async function getProduct(id) {
 }
 
 async function createProduct({ name, sku, description }) {
-  const user = await getCurrentUser();
+  const user  = await getCurrentUser();
+  const orgId = await getOrgId();
   const { data, error } = await sb
     .from('products')
-    .insert({ name, sku: sku || null, description: description || null, created_by: user.id })
+    .insert({ name, sku: sku || null, description: description || null, created_by: user.id, org_id: orgId })
     .select().single();
   if (error) throw error;
   return data;
@@ -131,7 +137,8 @@ async function getProductDocuments(productId) {
 }
 
 async function uploadDocument({ productId, marketId, documentTypeId, file, version, reviewDate, expiryDate, notes }) {
-  const user = await getCurrentUser();
+  const user  = await getCurrentUser();
+  const orgId = await getOrgId();
 
   // Build storage path
   const timestamp = Date.now();
@@ -167,6 +174,7 @@ async function uploadDocument({ productId, marketId, documentTypeId, file, versi
     expiry_date:      expiryDate  || null,
     notes:            notes       || null,
     uploaded_by:      user.id,
+    org_id:           orgId,
   }).select().single();
   if (error) throw error;
   return data;
@@ -211,7 +219,8 @@ async function getSlotAttachments(productId, marketId, documentTypeId) {
 }
 
 async function uploadAttachmentFile({ productId, marketId, documentTypeId, file, relativePath }) {
-  const user = await getCurrentUser();
+  const user  = await getCurrentUser();
+  const orgId = await getOrgId();
   const timestamp = Date.now();
   const safePath = relativePath.replace(/[^a-zA-Z0-9._\-\/]/g, '_');
   const filePath = `attachments/${productId}/${marketId}/${documentTypeId}/${timestamp}/${safePath}`;
@@ -231,6 +240,7 @@ async function uploadAttachmentFile({ productId, marketId, documentTypeId, file,
     file_size:        file.size,
     file_mime_type:   file.type,
     uploaded_by:      user.id,
+    org_id:           orgId,
   });
   if (error) throw error;
 }
@@ -253,7 +263,8 @@ async function getProductOverrides(productId) {
 }
 
 async function deactivateSlot(productId, marketId, documentTypeId, reason) {
-  const user = await getCurrentUser();
+  const user  = await getCurrentUser();
+  const orgId = await getOrgId();
   const { error } = await sb.from('product_document_overrides').upsert({
     product_id:       productId,
     market_id:        marketId,
@@ -261,6 +272,7 @@ async function deactivateSlot(productId, marketId, documentTypeId, reason) {
     is_active:        false,
     reason:           reason || null,
     deactivated_by:   user.id,
+    org_id:           orgId,
   }, { onConflict: 'product_id,market_id,document_type_id' });
   if (error) throw error;
 }

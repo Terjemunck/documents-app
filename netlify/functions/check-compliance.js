@@ -124,6 +124,7 @@ export const handler = async (event) => {
       .from('compliance_check_results')
       .insert({
         document_id,
+        org_id:      doc.org_id,
         status:      result.status,
         summary:     result.summary,
         result_json: result,
