@@ -34,7 +34,10 @@ export async function handler(event) {
   const token = (event.headers.authorization || '').replace('Bearer ', '').trim();
   if (!token) return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorised' }) };
 
-  const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  const sb = createClient(
+    process.env.SUPABASE_URL || 'https://nqajrmedbjvghvsccbsv.supabase.co',
+    process.env.SUPABASE_SERVICE_KEY
+  );
 
   const { data: { user: caller }, error: authErr } = await sb.auth.getUser(token);
   if (authErr || !caller) return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Invalid token' }) };
