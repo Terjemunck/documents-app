@@ -78,7 +78,10 @@ export async function handler(event) {
     },
   });
 
-  if (inviteErr) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: inviteErr.message }) };
+  if (inviteErr) {
+    console.error('Invite error:', JSON.stringify(inviteErr));
+    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: inviteErr.message || inviteErr.code || JSON.stringify(inviteErr) }) };
+  }
 
   return {
     statusCode: 200,
