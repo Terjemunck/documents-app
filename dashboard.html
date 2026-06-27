@@ -123,7 +123,7 @@ async function init() {
     document.getElementById('nav-user').textContent = profile.full_name || profile.id.slice(0, 8);
     document.getElementById('nav-role').textContent = profile.role === 'admin' ? 'Administrator' : 'User';
     document.getElementById('user-avatar').textContent = (profile.full_name || 'U')[0].toUpperCase();
-    if (profile.role === 'admin') {
+    if (profile.role === 'admin' || profile.role === 'org_admin') {
       document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('admin-only'));
     }
   }
