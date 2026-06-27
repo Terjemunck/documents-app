@@ -401,6 +401,7 @@ function renderUserRow(u, showCompany) {
       <td><span class="badge ${roleCls}">${roleLabel}</span></td>
       <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
         ${!isSelf ? `<button class="btn btn-ghost btn-sm" onclick="changeRole('${u.id}','${u.role}','${escHtml(u.full_name||u.email||u.id)}',${showCompany},${showCompany ? `'${u.org_id}'` : 'null'})">Change Role</button>` : ''}
         ${showCompany ? `<button class="btn btn-ghost btn-sm" onclick="moveUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}','${u.org_id||''}')">Move</button>` : ''}
         ${!isSelf ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}')">Remove</button>` : ''}
@@ -499,6 +500,32 @@ async function removeUser(userId, name) {
       } catch (err) {
         showToast(err.message, 'error');
         btn.disabled = false; btn.textContent = 'Remove';
+      }
+    }
+  });
+}
+
+async function editUserName(userId, currentName) {
+  openModal({
+    title: 'Edit Name',
+    body: `
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="edit-uname" value="${currentName}" placeholder="Full name">
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name = document.getElementById('edit-uname').value.trim();
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ full_name: name || null }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('Name updated.');
+        if (currentProfile.role === 'admin') loadAllUsers(); else loadOrgUsers();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false; btn.textContent = 'Save';
       }
     }
   });
