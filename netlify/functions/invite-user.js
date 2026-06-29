@@ -69,6 +69,7 @@ export async function handler(event) {
   const safeRole = allowedRoles.includes(role) ? role : 'user';
 
   // ── Send invite ─────────────────────────────────────────────────────────────
+  console.log('Inviting:', email, 'org:', targetOrgId, 'role:', safeRole, 'redirectTo:', `${SITE_URL}/index.html`);
   const { error: inviteErr } = await sb.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${SITE_URL}/index.html`,
     data: {

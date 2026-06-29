@@ -155,7 +155,7 @@ async function loadDashboard() {
 }
 
 function renderStats(rows) {
-  // Group by product: a product is "complete" if BOTH markets are complete
+  // Group by product: a product is "complete" only if ALL assigned markets are complete
   const products = {};
   rows.forEach(r => {
     if (!products[r.product_id]) products[r.product_id] = [];
@@ -204,14 +204,9 @@ function renderTable(rows) {
         <tr>
           <th>Product</th>
           <th>SKU</th>
-          <th>EU Status</th>
-          <th style="padding-left:0">
-            <span style="display:inline-flex;align-items:center;gap:6px;">
-              EU Docs
-            </span>
-          </th>
-          <th>Middle East Status</th>
-          <th>ME Docs</th>
+          <th>Overall Status</th>
+          <th>Markets</th>
+          <th>Docs</th>
           <th></th>
         </tr>
       </thead>
@@ -222,17 +217,30 @@ function renderTable(rows) {
   tableEl.innerHTML = html;
 }
 
+const STATUS_RANK = { outdated: 0, incomplete: 1, unchecked: 2, complete: 3 };
+
 function renderProductRow(p) {
-  const eu = p.markets['EU'];
-  const me = p.markets['ME'];
+  const marketList = Object.values(p.markets);
+  // Worst status across all markets
+  const worstStatus = marketList.reduce((worst, m) => {
+    return (STATUS_RANK[m.compliance_status] ?? 4) < (STATUS_RANK[worst] ?? 4)
+      ? m.compliance_status : worst;
+  }, 'complete');
+  // Aggregate docs
+  const docsPresent = marketList.reduce((s, m) => s + (m.docs_present || 0), 0);
+  const docsTotal   = marketList.reduce((s, m) => s + (m.total_required || 0), 0);
+  // Market code pills
+  const marketPills = marketList.map(m =>
+    `<span style="display:inline-block;padding:1px 6px;border-radius:9px;background:var(--surface-2);font-size:.75rem;color:var(--text-muted)">${m.market_code}</span>`
+  ).join(' ');
+
   return `
     <tr>
       <td class="td-name">${p.name}</td>
       <td class="td-sku">${p.sku || '—'}</td>
-      <td>${eu ? complianceBadge(eu.compliance_status) : '<span class="badge badge-neutral">—</span>'}</td>
-      <td>${eu ? `<span class="text-sm text-muted">${eu.docs_present}/${eu.total_required}</span>` : '—'}</td>
-      <td>${me ? complianceBadge(me.compliance_status) : '<span class="badge badge-neutral">—</span>'}</td>
-      <td>${me ? `<span class="text-sm text-muted">${me.docs_present}/${me.total_required}</span>` : '—'}</td>
+      <td>${marketList.length ? complianceBadge(worstStatus) : '<span class="badge badge-neutral">—</span>'}</td>
+      <td>${marketPills || '<span class="text-muted text-sm">None</span>'}</td>
+      <td><span class="text-sm text-muted">${docsTotal ? `${docsPresent}/${docsTotal}` : '—'}</span></td>
       <td>
         <a href="product.html?id=${p.id}" class="btn btn-secondary btn-sm">View →</a>
       </td>
