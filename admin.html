@@ -656,6 +656,9 @@ function setupInvite(isPlatformAdmin) {
 // ─── Markets ───────────────────────────────────────────────────────────────────
 async function loadOrgMarkets() {
   const el = document.getElementById('markets-list');
+  // Hide the Add Market button — org admins cannot add markets
+  const addBtn = document.getElementById('btn-new-market');
+  if (addBtn) addBtn.style.display = 'none';
   try {
     const { data, error } = await sb.from('markets').select('*').eq('is_active', true).order('name');
     if (error) throw error;

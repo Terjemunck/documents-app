@@ -137,9 +137,9 @@ async function getMarketRequirements() {
 }
 
 async function getOrgDocumentRequirements(orgId) {
-  const query = sb.from('org_document_requirements')
+  let query = sb.from('org_document_requirements')
     .select('market_id, document_type_id');
-  if (orgId) query.eq('org_id', orgId);
+  if (orgId) query = query.eq('org_id', orgId);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
