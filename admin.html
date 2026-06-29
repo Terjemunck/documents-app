@@ -759,51 +759,113 @@ async function toggleMarket(id, isActive, name) {
 }
 
 async function manageRequirements(marketId, marketName) {
+  const profile   = await getUserProfile();
+  const isPlatform = profile?.role === 'admin';
+  const orgId     = profile?.org_id;
+
   const { data: docTypes } = await sb.from('document_types').select('*').eq('is_active', true).order('sort_order');
   const { data: existing } = await sb.from('market_document_requirements').select('*').eq('market_id', marketId);
   const reqMap = {};
   (existing || []).forEach(r => { reqMap[r.document_type_id] = r.is_required; });
 
+  // Org-level promotions for this market
+  let orgPromoted = new Set();
+  if (!isPlatform && orgId) {
+    const orgReqs = await getOrgDocumentRequirements(orgId);
+    orgReqs.filter(r => r.market_id === marketId).forEach(r => orgPromoted.add(r.document_type_id));
+  }
+
+  // Only show doc types that have a global requirement (required or optional) — skip N/A ones for org admins
+  const relevantTypes = isPlatform
+    ? (docTypes || [])
+    : (docTypes || []).filter(dt => reqMap[dt.id] !== undefined); // has a global requirement
+
+  const tableRows = relevantTypes.map(dt => {
+    const globalIsRequired = reqMap[dt.id] === true;
+    const globalIsOptional = reqMap[dt.id] === false;
+    const isNA = reqMap[dt.id] === undefined;
+
+    if (isPlatform) {
+      // Platform admin: full Required / Optional / N/A radio buttons
+      return `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 4px">${escHtml(dt.name)}</td>
+          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="required" ${globalIsRequired ? 'checked' : ''}></td>
+          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="optional" ${globalIsOptional ? 'checked' : ''}></td>
+          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="na"       ${isNA ? 'checked' : ''}></td>
+        </tr>`;
+    } else {
+      // Org admin: required slots are locked; optional slots can be promoted
+      if (globalIsRequired) {
+        return `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px">${escHtml(dt.name)}</td>
+            <td style="padding:8px 4px" colspan="2">
+              <span class="badge badge-success" style="font-size:.75rem">Regulatory requirement</span>
+            </td>
+          </tr>`;
+      } else {
+        // Optional globally — org can promote to required
+        const promoted = orgPromoted.has(dt.id);
+        return `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px">${escHtml(dt.name)} <span class="text-muted text-sm">(optional)</span></td>
+            <td style="padding:8px 4px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem">
+                <input type="checkbox" name="org-req-${dt.id}" ${promoted ? 'checked' : ''}>
+                Require for our company
+              </label>
+            </td>
+          </tr>`;
+      }
+    }
+  }).join('');
+
   openModal({
     title: `Requirements — ${marketName}`,
     body: `
-      <p class="text-sm text-muted" style="margin-bottom:12px">Set which documents are required or optional for this market. Unticked = not applicable.</p>
+      <p class="text-sm text-muted" style="margin-bottom:12px">
+        ${isPlatform
+          ? 'Set regulatory requirements for this market. These apply to all companies.'
+          : 'Locked rows are regulatory requirements. You can additionally require optional documents for your company.'}
+      </p>
       <table style="width:100%;font-size:.85rem">
-        <thead><tr><th style="text-align:left;padding:6px 4px">Document Type</th><th style="padding:6px 8px">Required</th><th style="padding:6px 8px">Optional</th><th style="padding:6px 8px">N/A</th></tr></thead>
-        <tbody>
-          ${(docTypes || []).map(dt => {
-            const isReq = reqMap[dt.id] === true;
-            const isOpt = reqMap[dt.id] === false;
-            return `
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 4px">${escHtml(dt.name)}</td>
-                <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="required" ${isReq ? 'checked' : ''}></td>
-                <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="optional" ${isOpt ? 'checked' : ''}></td>
-                <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="na" ${!isReq && !isOpt ? 'checked' : ''}></td>
-              </tr>`;
-          }).join('')}
-        </tbody>
+        <thead><tr>
+          <th style="text-align:left;padding:6px 4px">Document Type</th>
+          ${isPlatform
+            ? '<th style="padding:6px 8px">Required</th><th style="padding:6px 8px">Optional</th><th style="padding:6px 8px">N/A</th>'
+            : '<th style="padding:6px 8px"></th>'}
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
       </table>`,
-    confirmText: 'Save Requirements',
+    confirmText: 'Save',
     onConfirm: async (overlay) => {
       const btn = overlay.querySelector('#modal-confirm');
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        // Delete existing requirements for this market
-        await sb.from('market_document_requirements').delete().eq('market_id', marketId);
-        // Re-insert
-        const inserts = [];
-        (docTypes || []).forEach(dt => {
-          const val = overlay.querySelector(`input[name="req-${dt.id}"]:checked`)?.value;
-          if (val === 'required') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: true });
-          if (val === 'optional') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: false });
-        });
-        if (inserts.length) {
-          const { error } = await sb.from('market_document_requirements').insert(inserts);
-          if (error) throw error;
+        if (isPlatform) {
+          // Platform admin saves global requirements
+          await sb.from('market_document_requirements').delete().eq('market_id', marketId);
+          const inserts = [];
+          (docTypes || []).forEach(dt => {
+            const val = overlay.querySelector(`input[name="req-${dt.id}"]:checked`)?.value;
+            if (val === 'required') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: true });
+            if (val === 'optional') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: false });
+          });
+          if (inserts.length) {
+            const { error } = await sb.from('market_document_requirements').insert(inserts);
+            if (error) throw error;
+          }
+        } else {
+          // Org admin saves org-level promotions of optional docs
+          const promoted = relevantTypes
+            .filter(dt => reqMap[dt.id] === false) // only optional ones
+            .filter(dt => overlay.querySelector(`input[name="org-req-${dt.id}"]`)?.checked)
+            .map(dt => dt.id);
+          await setOrgDocumentRequirements(orgId, marketId, promoted);
         }
         overlay.remove(); showToast('Requirements saved.');
-      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save Requirements'; }
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
     }
   });
 }

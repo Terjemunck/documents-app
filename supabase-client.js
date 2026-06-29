@@ -136,6 +136,29 @@ async function getMarketRequirements() {
   return (data || []).filter(r => r.document_types?.is_active === true);
 }
 
+async function getOrgDocumentRequirements(orgId) {
+  const query = sb.from('org_document_requirements')
+    .select('market_id, document_type_id');
+  if (orgId) query.eq('org_id', orgId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+async function setOrgDocumentRequirements(orgId, marketId, documentTypeIds) {
+  // Delete existing for this org+market, then re-insert
+  const { error: delErr } = await sb.from('org_document_requirements')
+    .delete()
+    .eq('org_id', orgId)
+    .eq('market_id', marketId);
+  if (delErr) throw delErr;
+  if (documentTypeIds.length) {
+    const inserts = documentTypeIds.map(dtId => ({ org_id: orgId, market_id: marketId, document_type_id: dtId }));
+    const { error } = await sb.from('org_document_requirements').insert(inserts);
+    if (error) throw error;
+  }
+}
+
 async function setDocTypeActive(id, isActive) {
   const { error } = await sb
     .from('document_types')
