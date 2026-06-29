@@ -128,12 +128,54 @@ async function getDocumentTypes() {
 }
 
 async function getMarketRequirements() {
-  const { data, error } = await sb
+  // Global requirements
+  const { data: globalData, error } = await sb
     .from('market_document_requirements')
-    .select('*, markets(*), document_types(*)')
+    .select('*, markets(*), document_types(*)');
   if (error) throw error;
-  // Exclude rows where the document type is globally disabled
-  return (data || []).filter(r => r.document_types?.is_active === true);
+  const global = (globalData || []).filter(r => r.document_types?.is_active === true);
+
+  // Org-specific custom types added as requirements
+  const { data: orgData } = await sb
+    .from('org_document_requirements')
+    .select('market_id, document_type_id, markets(*), document_types(*)');
+  const orgCustom = (orgData || [])
+    .filter(r => r.document_types?.org_id !== null && r.document_types?.org_id !== undefined && r.document_types?.is_active === true)
+    .map(r => ({ ...r, is_required: true }));
+
+  return [...global, ...orgCustom];
+}
+
+async function getOrgDocumentTypes() {
+  const { data, error } = await sb
+    .from('document_types')
+    .select('*')
+    .not('org_id', 'is', null)
+    .order('name');
+  if (error) throw error;
+  return data || [];
+}
+
+async function createOrgDocumentType(name) {
+  const orgId = await getOrgId();
+  const code  = 'CUSTOM_' + name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 12) + '_' + Date.now().toString(36).toUpperCase();
+  const { data, error } = await sb.from('document_types')
+    .insert({ name, code, org_id: orgId, is_active: true, sort_order: 999 })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function deleteOrgDocumentType(id) {
+  // Safety check: any documents uploaded against this type?
+  const { count } = await sb.from('documents')
+    .select('id', { count: 'exact', head: true })
+    .eq('document_type_id', id);
+  if (count > 0) throw new Error(`Cannot delete — ${count} document(s) already uploaded for this type.`);
+  // Remove from org requirements first, then delete type
+  await sb.from('org_document_requirements').delete().eq('document_type_id', id);
+  const { error } = await sb.from('document_types').delete().eq('id', id);
+  if (error) throw error;
 }
 
 async function getOrgDocumentRequirements(orgId) {

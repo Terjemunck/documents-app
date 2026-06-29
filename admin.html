@@ -793,34 +793,38 @@ async function toggleMarket(id, isActive, name) {
 }
 
 async function manageRequirements(marketId, marketName) {
-  const profile   = await getUserProfile();
+  const profile    = await getUserProfile();
   const isPlatform = profile?.role === 'admin';
-  const orgId     = profile?.org_id;
+  const orgId      = profile?.org_id;
 
   const { data: docTypes } = await sb.from('document_types').select('*').eq('is_active', true).order('sort_order');
   const { data: existing } = await sb.from('market_document_requirements').select('*').eq('market_id', marketId);
   const reqMap = {};
   (existing || []).forEach(r => { reqMap[r.document_type_id] = r.is_required; });
 
-  // Org-level promotions for this market
-  let orgPromoted = new Set();
+  // Global-only types (org_id IS NULL)
+  const globalTypes = (docTypes || []).filter(dt => !dt.org_id);
+
+  let orgPromoted  = new Set();  // optional globals promoted to required by this org
+  let orgCustomTypes = [];       // this org's custom types for this market
+
   if (!isPlatform && orgId) {
     const orgReqs = await getOrgDocumentRequirements(orgId);
     orgReqs.filter(r => r.market_id === marketId).forEach(r => orgPromoted.add(r.document_type_id));
+    // Fetch this org's custom doc types that are active for this market
+    const allOrgTypes = await getOrgDocumentTypes();
+    // Which custom types are already added to this market?
+    const customInMarket = new Set(orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id));
+    orgCustomTypes = allOrgTypes.map(dt => ({ ...dt, inMarket: customInMarket.has(dt.id) }));
   }
 
-  // Only show doc types that have a global requirement (required or optional) — skip N/A ones for org admins
-  const relevantTypes = isPlatform
-    ? (docTypes || [])
-    : (docTypes || []).filter(dt => reqMap[dt.id] !== undefined); // has a global requirement
-
-  const tableRows = relevantTypes.map(dt => {
+  // Rows for global doc types
+  const globalRows = globalTypes.map(dt => {
     const globalIsRequired = reqMap[dt.id] === true;
     const globalIsOptional = reqMap[dt.id] === false;
     const isNA = reqMap[dt.id] === undefined;
 
     if (isPlatform) {
-      // Platform admin: full Required / Optional / N/A radio buttons
       return `
         <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:8px 4px">${escHtml(dt.name)}</td>
@@ -829,7 +833,7 @@ async function manageRequirements(marketId, marketName) {
           <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="na"       ${isNA ? 'checked' : ''}></td>
         </tr>`;
     } else {
-      // Org admin: required slots are locked; optional slots can be promoted
+      if (isNA) return ''; // hide N/A types from org admin
       if (globalIsRequired) {
         return `
           <tr style="border-bottom:1px solid var(--border)">
@@ -839,7 +843,6 @@ async function manageRequirements(marketId, marketName) {
             </td>
           </tr>`;
       } else {
-        // Optional globally — org can promote to required
         const promoted = orgPromoted.has(dt.id);
         return `
           <tr style="border-bottom:1px solid var(--border)">
@@ -855,13 +858,41 @@ async function manageRequirements(marketId, marketName) {
     }
   }).join('');
 
+  // Custom docs section (org admin only)
+  const customSection = isPlatform ? '' : `
+    <tr><td colspan="2" style="padding:14px 4px 6px;font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Company-specific documents</td></tr>
+    ${orgCustomTypes.map(dt => `
+      <tr style="border-bottom:1px solid var(--border)" id="custom-row-${dt.id}">
+        <td style="padding:8px 4px">${escHtml(dt.name)}</td>
+        <td style="padding:8px 4px;display:flex;align-items:center;gap:8px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+            <input type="checkbox" name="custom-req-${dt.id}" ${dt.inMarket ? 'checked' : ''}>
+            Require for this market
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px"
+            data-id="${dt.id}" data-name="${escHtml(dt.name)}"
+            onclick="deleteCustomDocType(this.dataset.id, this.dataset.name)">✕</button>
+        </td>
+      </tr>`).join('')}
+    <tr id="custom-add-row">
+      <td colspan="2" style="padding:8px 4px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="custom-doc-name" placeholder="Document name…" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addCustomDocType('${marketId}')">+ Add</button>
+        </div>
+      </td>
+    </tr>`;
+
+  const relevantGlobalTypes = isPlatform ? globalTypes : globalTypes.filter(dt => reqMap[dt.id] !== undefined);
+
   openModal({
     title: `Requirements — ${marketName}`,
+    cls: 'modal-lg',
     body: `
       <p class="text-sm text-muted" style="margin-bottom:12px">
         ${isPlatform
           ? 'Set regulatory requirements for this market. These apply to all companies.'
-          : 'Locked rows are regulatory requirements. You can additionally require optional documents for your company.'}
+          : 'Locked rows are regulatory requirements. Optionals can be promoted. Add company-specific documents at the bottom.'}
       </p>
       <table style="width:100%;font-size:.85rem">
         <thead><tr>
@@ -870,7 +901,10 @@ async function manageRequirements(marketId, marketName) {
             ? '<th style="padding:6px 8px">Required</th><th style="padding:6px 8px">Optional</th><th style="padding:6px 8px">N/A</th>'
             : '<th style="padding:6px 8px"></th>'}
         </tr></thead>
-        <tbody>${tableRows}</tbody>
+        <tbody>
+          ${globalRows}
+          ${customSection}
+        </tbody>
       </table>`,
     confirmText: 'Save',
     onConfirm: async (overlay) => {
@@ -878,10 +912,9 @@ async function manageRequirements(marketId, marketName) {
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
         if (isPlatform) {
-          // Platform admin saves global requirements
           await sb.from('market_document_requirements').delete().eq('market_id', marketId);
           const inserts = [];
-          (docTypes || []).forEach(dt => {
+          globalTypes.forEach(dt => {
             const val = overlay.querySelector(`input[name="req-${dt.id}"]:checked`)?.value;
             if (val === 'required') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: true });
             if (val === 'optional') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: false });
@@ -891,17 +924,49 @@ async function manageRequirements(marketId, marketName) {
             if (error) throw error;
           }
         } else {
-          // Org admin saves org-level promotions of optional docs
-          const promoted = relevantTypes
-            .filter(dt => reqMap[dt.id] === false) // only optional ones
+          // Promoted optional globals
+          const promoted = relevantGlobalTypes
+            .filter(dt => reqMap[dt.id] === false)
             .filter(dt => overlay.querySelector(`input[name="org-req-${dt.id}"]`)?.checked)
             .map(dt => dt.id);
-          await setOrgDocumentRequirements(orgId, marketId, promoted);
+          // Custom types checked for this market
+          const customChecked = orgCustomTypes
+            .filter(dt => overlay.querySelector(`input[name="custom-req-${dt.id}"]`)?.checked)
+            .map(dt => dt.id);
+          await setOrgDocumentRequirements(orgId, marketId, [...promoted, ...customChecked]);
         }
         overlay.remove(); showToast('Requirements saved.');
       } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
     }
   });
+}
+
+async function addCustomDocType(marketId) {
+  const nameEl = document.getElementById('custom-doc-name');
+  const name   = nameEl?.value.trim();
+  if (!name) { showToast('Enter a document name.', 'error'); return; }
+  try {
+    const dt    = await createOrgDocumentType(name);
+    const orgId = (await getUserProfile())?.org_id;
+    // Auto-add to this market's org requirements
+    const orgReqs = await getOrgDocumentRequirements(orgId);
+    const currentIds = orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id);
+    await setOrgDocumentRequirements(orgId, marketId, [...currentIds, dt.id]);
+    showToast(`"${name}" added.`);
+    // Refresh modal
+    document.getElementById('modal-overlay')?.remove();
+    const market = (await sb.from('markets').select('name').eq('id', marketId).single()).data;
+    manageRequirements(marketId, market?.name || marketId);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function deleteCustomDocType(id, name) {
+  if (!confirm(`Delete custom document type "${name}"? This cannot be undone.`)) return;
+  try {
+    await deleteOrgDocumentType(id);
+    document.getElementById(`custom-row-${id}`)?.remove();
+    showToast(`"${name}" deleted.`);
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 // ─── Products ──────────────────────────────────────────────────────────────────
