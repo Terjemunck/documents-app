@@ -112,7 +112,12 @@ async function updateProduct(id, updates) {
 async function getMarkets() {
   const { data, error } = await sb.from('markets').select('*').order('name');
   if (error) throw error;
-  return data;
+  // EU always first, rest alphabetical
+  return (data || []).sort((a, b) => {
+    if (a.code === 'EU') return -1;
+    if (b.code === 'EU') return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 async function getDocumentTypes() {
