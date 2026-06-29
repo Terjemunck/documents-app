@@ -846,7 +846,7 @@ async function manageRequirements(marketId, marketName) {
         const promoted = orgPromoted.has(dt.id);
         return `
           <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px 4px">${escHtml(dt.name)} <span class="text-muted text-sm">(optional)</span></td>
+            <td style="padding:8px 4px">${escHtml(dt.name)}</td>
             <td style="padding:8px 4px">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem">
                 <input type="checkbox" name="org-req-${dt.id}" ${promoted ? 'checked' : ''}>
@@ -867,7 +867,7 @@ async function manageRequirements(marketId, marketName) {
         <td style="padding:8px 4px;display:flex;align-items:center;gap:8px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
             <input type="checkbox" name="custom-req-${dt.id}" ${dt.inMarket ? 'checked' : ''}>
-            Require for this market
+            Require for our company
           </label>
           <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px"
             data-id="${dt.id}" data-name="${escHtml(dt.name)}"
