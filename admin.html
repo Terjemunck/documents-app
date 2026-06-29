@@ -554,7 +554,7 @@ function setupInvite(isPlatformAdmin) {
 
     try {
       const { data: { session } } = await sb.auth.getSession();
-      const resp = await fetch('/.netlify/functions/invite-user', {
+      const resp = await fetch('https://nqajrmedbjvghvsccbsv.supabase.co/functions/v1/invite-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
