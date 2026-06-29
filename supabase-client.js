@@ -447,13 +447,13 @@ function setNavUser(profile) {
 }
 
 // Modal helper — creates and shows a simple modal
-function openModal({ title, body, onConfirm, confirmText = 'Confirm', confirmCls = 'btn-primary' }) {
+function openModal({ title, body, onConfirm, confirmText = 'Confirm', confirmCls = 'btn-primary', cls = '' }) {
   document.getElementById('modal-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'modal-overlay';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal">
+    <div class="modal ${cls}">
       <div class="modal-header">
         <h3>${title}</h3>
         <button class="modal-close" onclick="document.getElementById('modal-overlay').remove()">✕</button>

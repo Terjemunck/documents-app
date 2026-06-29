@@ -94,25 +94,29 @@
 
 <!-- Add Product Modal -->
 <template id="modal-add-product">
-  <div class="form-group">
-    <label class="form-label">Product Name <span class="required">*</span></label>
-    <input type="text" id="new-name" placeholder="e.g. Hydrating Face Cream" required>
-  </div>
-  <div class="form-group">
-    <label class="form-label">SKU / Product Code</label>
-    <input type="text" id="new-sku" placeholder="e.g. HFC-001">
-    <span class="form-hint">Optional internal reference code.</span>
-  </div>
-  <div class="form-group">
-    <label class="form-label">Description</label>
-    <textarea id="new-desc" rows="2" placeholder="Brief product description…"></textarea>
-  </div>
-  <div class="form-group">
-    <label class="form-label">Markets <span class="required">*</span></label>
-    <div id="new-markets-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-      <span class="text-muted text-sm">Loading markets…</span>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="form-group">
+        <label class="form-label">Product Name <span class="required">*</span></label>
+        <input type="text" id="new-name" placeholder="e.g. Hydrating Face Cream" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">SKU / Product Code</label>
+        <input type="text" id="new-sku" placeholder="e.g. HFC-001">
+        <span class="form-hint">Optional internal reference code.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="new-desc" rows="4" placeholder="Brief product description…"></textarea>
+      </div>
     </div>
-    <span class="form-hint">Select all markets this product will be sold in.</span>
+    <div class="form-group">
+      <label class="form-label">Markets <span class="required">*</span></label>
+      <div id="new-markets-list" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
+        <span class="text-muted text-sm">Loading markets…</span>
+      </div>
+      <span class="form-hint">Select all markets this product will be sold in.</span>
+    </div>
   </div>
 </template>
 
@@ -265,6 +269,7 @@ function setupAddProduct() {
     openModal({
       title: 'Add New Product',
       body: tmpl,
+      cls: 'modal-lg',
       confirmText: 'Add Product',
       confirmCls: 'btn-primary',
       onConfirm: async (overlay) => {

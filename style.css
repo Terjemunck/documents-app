@@ -499,6 +499,9 @@ textarea { resize: vertical; min-height: 80px; }
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
   width: 100%;
   max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   animation: slideUp .2s ease;
 }
 @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -520,7 +523,7 @@ textarea { resize: vertical; min-height: 80px; }
   line-height: 1;
 }
 .modal-close:hover { color: var(--text); background: var(--body-bg); }
-.modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
+.modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .modal-footer {
   padding: 14px 22px;
   border-top: 1px solid var(--border);

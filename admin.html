@@ -852,11 +852,20 @@ function setupProductBtn() {
     ).join('');
     openModal({
       title: 'Add Product',
+      cls: 'modal-lg',
       body: `
-        <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="p-name" placeholder="Hydrating Face Cream"></div>
-        <div class="form-group"><label class="form-label">SKU</label><input type="text" id="p-sku" placeholder="HFC-001"></div>
-        <div class="form-group"><label class="form-label">Description</label><textarea id="p-desc" rows="2"></textarea></div>
-        <div class="form-group"><label class="form-label">Markets <span class="required">*</span></label><div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">${marketCheckboxes}</div><span class="form-hint">Select all markets this product will be sold in.</span></div>`,
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="p-name" placeholder="Hydrating Face Cream"></div>
+            <div class="form-group"><label class="form-label">SKU</label><input type="text" id="p-sku" placeholder="HFC-001"></div>
+            <div class="form-group"><label class="form-label">Description</label><textarea id="p-desc" rows="4"></textarea></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Markets <span class="required">*</span></label>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">${marketCheckboxes}</div>
+            <span class="form-hint">Select all markets this product will be sold in.</span>
+          </div>
+        </div>`,
       confirmText: 'Add Product',
       onConfirm: async (overlay) => {
         const name = document.getElementById('p-name').value.trim();
