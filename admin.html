@@ -212,9 +212,11 @@ async function init() {
     document.getElementById('page-subtitle').textContent = 'Manage your products and team.';
     buildTabs([
       { key: 'products', label: '📦 Products' },
+      { key: 'markets',  label: '🌍 Markets'  },
       { key: 'users',    label: '👥 Users'    },
     ]);
     loadProducts();
+    loadOrgMarkets();
     await loadOrgUsers();
     setupProductBtn();
     setupInvite(false);
@@ -652,6 +654,35 @@ function setupInvite(isPlatformAdmin) {
 }
 
 // ─── Markets ───────────────────────────────────────────────────────────────────
+async function loadOrgMarkets() {
+  const el = document.getElementById('markets-list');
+  try {
+    const { data, error } = await sb.from('markets').select('*').eq('is_active', true).order('name');
+    if (error) throw error;
+    const rows = (data || []).sort((a, b) => a.code === 'EU' ? -1 : b.code === 'EU' ? 1 : a.name.localeCompare(b.name));
+    if (!rows.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">🌍</div><h3>No active markets</h3></div>`;
+      return;
+    }
+    el.innerHTML = `
+      <p class="text-sm text-muted" style="padding:16px 20px 0">Set which optional documents your company requires in addition to the regulatory minimum.</p>
+      <table>
+        <thead><tr><th>Market</th><th>Code</th><th>Region</th><th></th></tr></thead>
+        <tbody>
+          ${rows.map(m => `
+            <tr>
+              <td class="td-name">${escHtml(m.name)}</td>
+              <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${escHtml(m.code)}</code></td>
+              <td class="text-sm text-muted">${escHtml(m.region || '—')}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="manageRequirements('${m.id}','${escHtml(m.name)}')">Requirements</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
 async function loadMarkets() {
   const el = document.getElementById('markets-list');
   try {
