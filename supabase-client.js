@@ -65,7 +65,7 @@ async function getProduct(id) {
   return data;
 }
 
-async function createProduct({ name, sku, description }) {
+async function createProduct({ name, sku, description, marketIds = [] }) {
   const user  = await getCurrentUser();
   const orgId = await getOrgId();
   const { data, error } = await sb
@@ -73,7 +73,31 @@ async function createProduct({ name, sku, description }) {
     .insert({ name, sku: sku || null, description: description || null, created_by: user.id, org_id: orgId })
     .select().single();
   if (error) throw error;
+  if (marketIds.length) {
+    const inserts = marketIds.map(mid => ({ product_id: data.id, market_id: mid, org_id: orgId }));
+    const { error: mErr } = await sb.from('product_markets').insert(inserts);
+    if (mErr) throw mErr;
+  }
   return data;
+}
+
+async function getProductMarkets(productId) {
+  const { data, error } = await sb
+    .from('product_markets')
+    .select('market_id, markets(id, name, code)')
+    .eq('product_id', productId);
+  if (error) throw error;
+  return data || [];
+}
+
+async function setProductMarkets(productId, marketIds) {
+  const orgId = await getOrgId();
+  await sb.from('product_markets').delete().eq('product_id', productId);
+  if (marketIds.length) {
+    const inserts = marketIds.map(mid => ({ product_id: productId, market_id: mid, org_id: orgId }));
+    const { error } = await sb.from('product_markets').insert(inserts);
+    if (error) throw error;
+  }
 }
 
 async function updateProduct(id, updates) {

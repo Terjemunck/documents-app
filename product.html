@@ -98,14 +98,20 @@ async function init() {
 async function loadPage() {
   const bodyEl = document.getElementById('page-body');
   try {
-    [product, markets, requirements, documents, overrides, attachments] = await Promise.all([
+    const [prod, productMarketRows, allRequirements, docs, ovr, att] = await Promise.all([
       getProduct(productId),
-      getMarkets(),
+      getProductMarkets(productId),
       getMarketRequirements(),
       getProductDocuments(productId),
       getProductOverrides(productId),
       getProductAttachments(productId),
     ]);
+    product     = prod;
+    markets     = productMarketRows.map(pm => pm.markets).filter(Boolean);
+    requirements = allRequirements;
+    documents   = docs;
+    overrides   = ovr;
+    attachments = att;
 
     document.getElementById('product-title').textContent    = product.name;
     document.getElementById('breadcrumb-name').textContent  = product.name;
@@ -113,8 +119,11 @@ async function loadPage() {
     document.title = `${product.name} — Compliance Manager`;
 
     const adminCheck = await isAdmin();
-    if (adminCheck) {
+    const profile = await getUserProfile();
+    const canManage = adminCheck || profile?.role === 'org_admin';
+    if (canManage) {
       document.getElementById('header-actions').innerHTML = `
+        <button class="btn btn-secondary btn-sm" onclick="openManageMarkets()">Markets</button>
         <button class="btn btn-secondary" onclick="openEditProduct()">Edit Product</button>`;
     }
 
@@ -584,6 +593,39 @@ async function downloadDoc(filePath, fileName) {
   } catch (err) {
     showToast('Download failed: ' + err.message, 'error');
   }
+}
+
+async function openManageMarkets() {
+  const allMarkets = (await getMarkets()).filter(m => m.is_active);
+  const currentIds = new Set(markets.map(m => m.id));
+  openModal({
+    title: 'Manage Markets',
+    body: `
+      <p class="text-sm text-muted" style="margin-bottom:12px">Select which markets this product is sold in. The compliance dashboard will only show selected markets.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${allMarkets.map(m => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
+            <input type="checkbox" id="mm-${m.id}" value="${m.id}" ${currentIds.has(m.id) ? 'checked' : ''}>
+            ${m.name} <span class="text-muted" style="font-size:.8rem">(${m.code})</span>
+          </label>`).join('')}
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const selectedIds = allMarkets.filter(m => document.getElementById(`mm-${m.id}`)?.checked).map(m => m.id);
+      if (!selectedIds.length) { showToast('Select at least one market.', 'error'); return; }
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await setProductMarkets(productId, selectedIds);
+        overlay.remove();
+        showToast('Markets updated.');
+        await loadPage();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false; btn.textContent = 'Save';
+      }
+    }
+  });
 }
 
 function openEditProduct() {

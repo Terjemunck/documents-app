@@ -107,6 +107,13 @@
     <label class="form-label">Description</label>
     <textarea id="new-desc" rows="2" placeholder="Brief product description…"></textarea>
   </div>
+  <div class="form-group">
+    <label class="form-label">Markets <span class="required">*</span></label>
+    <div id="new-markets-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+      <span class="text-muted text-sm">Loading markets…</span>
+    </div>
+    <span class="form-hint">Select all markets this product will be sold in.</span>
+  </div>
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -244,7 +251,8 @@ function setupSearch() {
 }
 
 function setupAddProduct() {
-  document.getElementById('btn-add-product')?.addEventListener('click', () => {
+  document.getElementById('btn-add-product')?.addEventListener('click', async () => {
+    const markets = await getMarkets();
     const tmpl = document.getElementById('modal-add-product').innerHTML;
     openModal({
       title: 'Add New Product',
@@ -255,11 +263,13 @@ function setupAddProduct() {
         const name = document.getElementById('new-name').value.trim();
         const sku  = document.getElementById('new-sku').value.trim();
         const desc = document.getElementById('new-desc').value.trim();
+        const marketIds = markets.filter(m => document.getElementById(`mkt-${m.id}`)?.checked).map(m => m.id);
         if (!name) { showToast('Product name is required.', 'error'); return; }
+        if (!marketIds.length) { showToast('Select at least one market.', 'error'); return; }
         const btn = overlay.querySelector('#modal-confirm');
         btn.disabled = true; btn.textContent = 'Adding…';
         try {
-          await createProduct({ name, sku, description: desc });
+          await createProduct({ name, sku, description: desc, marketIds });
           overlay.remove();
           showToast('Product added successfully.');
           await loadDashboard();
@@ -269,6 +279,16 @@ function setupAddProduct() {
         }
       }
     });
+    // Populate markets checkboxes after modal renders
+    const container = document.getElementById('new-markets-list');
+    if (container) {
+      container.innerHTML = markets.filter(m => m.is_active).map(m =>
+        `<label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
+          <input type="checkbox" id="mkt-${m.id}" value="${m.id}">
+          ${m.name} <span class="text-muted" style="font-size:.8rem">(${m.code})</span>
+        </label>`
+      ).join('');
+    }
   });
 }
 
