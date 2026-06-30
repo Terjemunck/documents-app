@@ -76,6 +76,7 @@ let requirements = [];
 let documents    = [];
 let overrides    = [];
 let attachments  = [];
+let checks       = {}; // { [documentId]: latestCheckRow }
 
 async function init() {
   if (!productId) { window.location.href = 'dashboard.html'; return; }
@@ -106,12 +107,13 @@ async function loadPage() {
       getProductOverrides(productId),
       getProductAttachments(productId),
     ]);
-    product     = prod;
-    markets     = productMarketRows.map(pm => pm.markets).filter(Boolean);
+    product      = prod;
+    markets      = productMarketRows.map(pm => pm.markets).filter(Boolean);
     requirements = allRequirements;
-    documents   = docs;
-    overrides   = ovr;
-    attachments = att;
+    documents    = docs;
+    overrides    = ovr;
+    attachments  = att;
+    checks       = await getLatestChecksForProduct(productId);
 
     document.getElementById('product-title').textContent    = product.name;
     document.getElementById('breadcrumb-name').textContent  = product.name;
@@ -145,7 +147,7 @@ function renderMarketSection(market) {
       d.document_type_id === req.document_type_id &&
       d.status !== 'pending_upload'
     );
-    return renderDocSlot(req, doc, market);
+    return renderDocSlot(req, doc, market, doc ? checks[doc.id] : null);
   });
   return `
     <div class="market-section">
@@ -157,7 +159,7 @@ function renderMarketSection(market) {
     </div>`;
 }
 
-function renderDocSlot(req, doc, market) {
+function renderDocSlot(req, doc, market, cachedCheck) {
   const dt       = req.document_types;
   const optional = !req.is_required;
 
@@ -238,13 +240,31 @@ function renderDocSlot(req, doc, market) {
         <button class="btn btn-primary btn-sm" onclick="openUpload('${safeMarket}','${safeDt}','${safeDtName}','${escAttr(dt.code)}',false)">⬆ Upload</button>
       `}
     </div>
-    ${doc ? `<div class="ai-result" id="ai-result-${doc.id}" style="display:none"></div>` : ''}`;
+    ${doc ? `<div class="ai-result" id="ai-result-${doc.id}" style="${cachedCheck ? '' : 'display:none'}">${cachedCheck ? renderCachedCheck(cachedCheck) : ''}</div>` : ''}`;
 
   const attachHtml = renderAttachmentSection(safeMarket, safeDt, slotAttachments);
 
   return `
     <div class="doc-slot ${slotClass}" id="slot-${safeMarket}-${safeDt}">
       ${headerHtml}${bodyHtml}${actionsHtml}${attachHtml}
+    </div>`;
+}
+
+function renderCachedCheck(r) {
+  if (!r) return '';
+  const result = r.result_json || {};
+  const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[r.status] || 'badge-neutral';
+  const costStr = r.cost_usd ? ` · $${Number(r.cost_usd).toFixed(4)}` : '';
+  return `
+    <div class="ai-result-inner">
+      <div class="ai-result-header">
+        <span class="badge ${statusClass}" style="text-transform:uppercase">${r.status}</span>
+        <span class="text-sm text-muted">AI check · ${formatDate(r.checked_at)}${costStr}</span>
+      </div>
+      <p class="ai-summary">${escHtml(result.summary || r.summary || '')}</p>
+      ${result.issues && result.issues !== 'None identified.' ? `<div class="ai-section"><strong>Issues</strong><p>${escHtml(result.issues)}</p></div>` : ''}
+      ${result.recommendations && result.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(result.recommendations)}</p></div>` : ''}
+      ${result.disclaimer ? `<p class="ai-disclaimer">${escHtml(result.disclaimer)}</p>` : ''}
     </div>`;
 }
 
@@ -486,7 +506,7 @@ function openUpload(marketId, docTypeId, docTypeName, docTypeCode, isReplace) {
     </div>`;
 
   setupFileDrop();
-  document.getElementById('upload-confirm').addEventListener('click', () => doUpload(marketId, docTypeId));
+  document.getElementById('upload-confirm').addEventListener('click', () => doUpload(marketId, docTypeId, docTypeName));
 }
 
 function setupFileDrop() {
@@ -516,7 +536,7 @@ function showSelectedFile(file) {
   document.querySelector('.drop-text').style.display = 'none';
 }
 
-async function doUpload(marketId, docTypeId) {
+async function doUpload(marketId, docTypeId, docTypeName) {
   const file = document.getElementById('file-input').files[0];
   if (!file) { showToast('Please select a file.', 'error'); return; }
 
@@ -524,7 +544,7 @@ async function doUpload(marketId, docTypeId) {
   btn.disabled = true; btn.textContent = 'Uploading…';
 
   try {
-    await uploadDocument({
+    const doc = await uploadDocument({
       productId, marketId, documentTypeId: docTypeId, file,
       version:    document.getElementById('up-version').value.trim() || '1.0',
       reviewDate: document.getElementById('up-review').value  || null,
@@ -532,8 +552,12 @@ async function doUpload(marketId, docTypeId) {
       notes:      document.getElementById('up-notes').value.trim() || null,
     });
     document.getElementById('upload-overlay').remove();
-    showToast('Document uploaded successfully.');
+    showToast('Document uploaded. Running AI check…');
     await loadPage();
+    // Auto-trigger AI check in the background after page re-renders
+    if (doc?.id) {
+      setTimeout(() => runAiCheck(doc.id, docTypeName || 'document').catch(() => {}), 50);
+    }
   } catch (err) {
     showToast('Upload failed: ' + err.message, 'error');
     btn.disabled = false; btn.textContent = 'Upload';
@@ -546,6 +570,7 @@ async function runAiCheck(documentId, docTypeName) {
   const btn    = document.getElementById(`ai-btn-${documentId}`);
   const result = document.getElementById(`ai-result-${documentId}`);
 
+  if (!btn || !result) return; // guard: element may not exist
   btn.disabled = true; btn.textContent = '🤖 Checking…';
   result.style.display = 'none';
 

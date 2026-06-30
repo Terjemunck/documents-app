@@ -403,6 +403,51 @@ async function getAllChecksForDocument(documentId) {
   return data;
 }
 
+// Returns { [documentId]: latestCheckRow } for all docs belonging to a product
+async function getLatestChecksForProduct(productId) {
+  const { data: docs } = await sb.from('documents').select('id').eq('product_id', productId);
+  if (!docs?.length) return {};
+  const ids = docs.map(d => d.id);
+  const { data } = await sb
+    .from('compliance_check_results')
+    .select('*')
+    .in('document_id', ids)
+    .order('checked_at', { ascending: false });
+  const latest = {};
+  (data || []).forEach(r => { if (!latest[r.document_id]) latest[r.document_id] = r; });
+  return latest;
+}
+
+// Returns all check records for this org from the last 3 months (for usage dashboard)
+async function getAiUsageSummary() {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 3);
+  const { data, error } = await sb
+    .from('compliance_check_results')
+    .select('cost_usd, input_tokens, output_tokens, checked_at, check_type, model_used')
+    .gte('checked_at', since.toISOString())
+    .not('cost_usd', 'is', null)
+    .order('checked_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+async function updateOrgAiCap(orgId, capUsd) {
+  const { error } = await sb
+    .from('organizations')
+    .update({ ai_monthly_cap_usd: capUsd })
+    .eq('id', orgId);
+  if (error) throw error;
+}
+
+async function setUserAiPermission(userId, canUseAi) {
+  const { error } = await sb
+    .from('user_profiles')
+    .update({ can_use_ai: canUseAi })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
 // ─── UI Helpers ───────────────────────────────────────────────────────────────
 
 function formatDate(d) {
