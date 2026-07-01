@@ -520,8 +520,6 @@ function renderUserRow(u, showCompany) {
   const roleCls    = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
   const isSelf     = u.id === currentProfile.id;
   const isElevated = u.role === 'admin' || u.role === 'org_admin'; // always have AI
-  const aiChecked  = isElevated || u.can_use_ai;
-  const aiDisabled = isElevated ? 'disabled title="Admins always have AI access"' : '';
 
   return `
     <tr>
@@ -531,11 +529,14 @@ function renderUserRow(u, showCompany) {
       <td><span class="badge ${roleCls}">${roleLabel}</span></td>
       <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
       <td style="text-align:center">
-        <label style="cursor:${isElevated ? 'default' : 'pointer'};display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
-          <input type="checkbox" ${aiChecked ? 'checked' : ''} ${aiDisabled}
-            onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
-          <span style="color:${aiChecked ? 'var(--success)' : 'var(--text-muted)'}">${aiChecked ? 'On' : 'Off'}</span>
-        </label>
+        ${isElevated
+          ? `<span class="text-sm text-muted" title="Admins always have AI access">Always on</span>`
+          : `<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
+              <input type="checkbox" ${u.can_use_ai ? 'checked' : ''}
+                onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
+              <span style="color:${u.can_use_ai ? 'var(--success)' : 'var(--text-muted)'}">${u.can_use_ai ? 'On' : 'Off'}</span>
+            </label>`
+        }
       </td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
