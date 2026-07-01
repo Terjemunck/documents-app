@@ -55,7 +55,7 @@ export async function handler(event) {
   // ── Parse body ──────────────────────────────────────────────────────────────
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch {}
-  const { email, full_name, org_id, role } = body;
+  const { email, full_name, org_id, role, can_use_ai } = body;
   if (!email) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'email is required' }) };
 
   // ── Determine target org and role ───────────────────────────────────────────
@@ -73,9 +73,10 @@ export async function handler(event) {
   const { error: inviteErr } = await sb.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${SITE_URL}/index.html`,
     data: {
-      org_id:    targetOrgId,
-      role:      safeRole,
-      full_name: (full_name || '').trim(),
+      org_id:     targetOrgId,
+      role:       safeRole,
+      full_name:  (full_name || '').trim(),
+      can_use_ai: safeRole === 'admin' || safeRole === 'org_admin' ? true : !!can_use_ai,
     },
   });
 

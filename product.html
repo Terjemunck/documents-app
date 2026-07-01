@@ -27,6 +27,9 @@
       <a href="admin.html" class="nav-link admin-only">
         <span class="nav-icon">⚙️</span> Manage
       </a>
+      <a href="system.html" class="nav-link" id="nav-system" style="display:none">
+        <span class="nav-icon">🔧</span> System Manager
+      </a>
     </div>
     <div class="sidebar-footer">
       <div class="sidebar-user">
@@ -91,6 +94,9 @@ async function init() {
     document.getElementById('user-avatar').textContent  = (profile.full_name || 'U')[0].toUpperCase();
     if (profile.role === 'admin' || profile.role === 'org_admin') {
       document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('admin-only'));
+    }
+    if (profile.role === 'admin') {
+      document.getElementById('nav-system').style.display = '';
     }
   }
 

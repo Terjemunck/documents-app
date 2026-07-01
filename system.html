@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Manager — Compliance Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🧴</div>
+      <div>
+        <div class="logo-text">Compliance Mgr</div>
+        <div class="logo-sub">Cosmetics Regulatory</div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <span class="nav-label">Compliance</span>
+      <a href="dashboard.html" class="nav-link">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <span class="nav-label">Admin</span>
+      <a href="admin.html" class="nav-link">
+        <span class="nav-icon">⚙️</span> Manage
+      </a>
+      <a href="system.html" class="nav-link active">
+        <span class="nav-icon">🔧</span> System Manager
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="nav-user" onclick="openProfileEditor()" style="cursor:pointer" title="Edit profile">Loading…</div>
+          <div class="user-role" id="nav-role">Platform Admin</div>
+        </div>
+        <button class="btn-signout" onclick="signOut()" title="Sign out">⏏</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>System Manager</h1>
+        <p>Manage all companies, users, markets and document types.</p>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="tabs" id="tab-bar"></div>
+
+      <!-- ── Companies tab ─────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-companies" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Companies</span>
+            <button class="btn btn-primary btn-sm" id="btn-new-company">+ Add Company</button>
+          </div>
+          <div class="table-wrap" id="companies-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Markets tab ───────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-markets" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Markets</span>
+            <button class="btn btn-primary btn-sm" id="btn-new-market">+ Add Market</button>
+          </div>
+          <div class="table-wrap" id="markets-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Users tab ─────────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-users" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Users</span>
+            <input type="text" id="user-search" placeholder="Search…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;width:200px">
+          </div>
+          <div class="table-wrap" id="users-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+        <div class="card mt-24">
+          <div class="card-header"><span class="card-title">Invite New User</span></div>
+          <div class="card-body" style="padding:20px 22px">
+            <p class="text-sm text-muted" style="margin-bottom:18px">The user will receive an email with a sign-in link and set their password on first login.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" id="inv-name" placeholder="Jane Smith">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email Address <span class="required">*</span></label>
+                <input type="email" id="inv-email" placeholder="jane@company.com">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Company <span class="required">*</span></label>
+                <select id="inv-org"><option value="">Select company…</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Role</label>
+                <select id="inv-role" onchange="onInviteRoleChange(this.value)">
+                  <option value="user">User</option>
+                  <option value="org_admin">Org Admin</option>
+                  <option value="admin">Platform Admin</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">AI Access</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                  <input type="checkbox" id="inv-ai">
+                  Allow AI document checks
+                </label>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-send-invite">Send Invite</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Doc Types tab ─────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-doctypes" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Document Types</span>
+            <button class="btn btn-primary btn-sm" id="btn-new-doctype">+ Add Type</button>
+          </div>
+          <div class="table-wrap" id="doctypes-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script>
+let currentProfile = null;
+let allUsers       = [];
+let allCompanies   = [];
+
+async function init() {
+  const session = await requireAuth();
+  if (!session) return;
+
+  currentProfile = await getUserProfile();
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    showToast('Platform admin access required.', 'error');
+    setTimeout(() => window.location.href = 'dashboard.html', 1500);
+    return;
+  }
+
+  document.getElementById('nav-user').textContent    = currentProfile.full_name || currentProfile.id.slice(0, 8);
+  document.getElementById('user-avatar').textContent = (currentProfile.full_name || 'A')[0].toUpperCase();
+
+  buildTabs([
+    { key: 'companies', label: '🏢 Companies' },
+    { key: 'markets',   label: '🌍 Markets'   },
+    { key: 'users',     label: '👥 Users'      },
+    { key: 'doctypes',  label: '📄 Doc Types'  },
+  ]);
+
+  loadCompanies();
+  loadMarkets();
+  loadDocTypes();
+  await loadAllUsers();
+  setupCompanyBtn();
+  setupMarketBtn();
+  setupDocTypeBtn();
+  setupInvite();
+}
+
+// ─── Tabs ──────────────────────────────────────────────────────────────────────
+function buildTabs(tabs) {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = tabs.map((t, i) =>
+    `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${t.key}">${t.label}</button>`
+  ).join('');
+  document.getElementById('tab-' + tabs[0].key).style.display = '';
+  document.getElementById('tab-' + tabs[0].key).classList.add('active');
+  bar.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      bar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+      btn.classList.add('active');
+      const panel = document.getElementById('tab-' + btn.dataset.tab);
+      panel.style.display = '';
+      panel.classList.add('active');
+    });
+  });
+}
+
+// ─── Companies ─────────────────────────────────────────────────────────────────
+async function loadCompanies() {
+  const el = document.getElementById('companies-list');
+  try {
+    const { data, error } = await sb.from('admin_orgs_view').select('*');
+    if (error) throw error;
+    allCompanies = data || [];
+    renderCompanies(allCompanies);
+    populateOrgSelect(allCompanies);
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function renderCompanies(rows) {
+  const el = document.getElementById('companies-list');
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🏢</div><h3>No companies yet</h3></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Company</th><th>Slug</th><th>Status</th><th>Users</th><th>Products</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(c => `
+          <tr style="${!c.is_active ? 'opacity:.55' : ''}">
+            <td class="td-name">${escHtml(c.name)}</td>
+            <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${escHtml(c.slug)}</code></td>
+            <td>${c.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Inactive</span>'}</td>
+            <td class="text-sm text-muted">${c.user_count}</td>
+            <td class="text-sm text-muted">${c.product_count}</td>
+            <td class="text-sm text-muted">${formatDate(c.created_at)}</td>
+            <td style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" onclick="editCompany('${c.id}','${escHtml(c.name)}')">Edit</button>
+              <button class="btn btn-ghost btn-sm" onclick="toggleCompany('${c.id}',${c.is_active},'${escHtml(c.name)}')">${c.is_active ? 'Deactivate' : 'Activate'}</button>
+              ${!c.is_active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCompany('${c.id}','${escHtml(c.name)}')">Delete</button>` : ''}
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function setupCompanyBtn() {
+  document.getElementById('btn-new-company').addEventListener('click', () => {
+    openModal({
+      title: 'Add Company',
+      body: `<div class="form-group"><label class="form-label">Company Name <span class="required">*</span></label><input type="text" id="co-name" placeholder="Acme Cosmetics ApS"></div>`,
+      confirmText: 'Add Company',
+      onConfirm: async (overlay) => {
+        const name = document.getElementById('co-name').value.trim();
+        if (!name) { showToast('Company name is required.', 'error'); return; }
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const btn  = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          const { error } = await sb.from('organizations').insert({ name, slug });
+          if (error) throw error;
+          overlay.remove(); showToast('Company added.'); loadCompanies();
+        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Add Company'; }
+      }
+    });
+  });
+}
+
+function editCompany(id, name) {
+  openModal({
+    title: 'Edit Company',
+    body: `<div class="form-group"><label class="form-label">Company Name <span class="required">*</span></label><input type="text" id="eco-name" value="${name}"></div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const newName = document.getElementById('eco-name').value.trim();
+      if (!newName) { showToast('Name required.', 'error'); return; }
+      const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('organizations').update({ name: newName, slug }).eq('id', id);
+        if (error) throw error;
+        overlay.remove(); showToast('Company updated.'); loadCompanies();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function toggleCompany(id, isActive, name) {
+  if (isActive) {
+    openModal({
+      title: `Deactivate "${name}"?`,
+      body: `<p class="text-muted">This will also deactivate all products belonging to this company. Users will lose access. You can reactivate at any time.</p>`,
+      confirmText: 'Deactivate', confirmCls: 'btn-warning',
+      onConfirm: async (overlay) => {
+        const btn = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Deactivating…';
+        try {
+          await sb.from('products').update({ is_active: false }).eq('org_id', id);
+          const { error } = await sb.from('organizations').update({ is_active: false }).eq('id', id);
+          if (error) throw error;
+          overlay.remove(); showToast(`"${name}" deactivated.`); loadCompanies();
+        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Deactivate'; }
+      }
+    });
+  } else {
+    try {
+      await sb.from('organizations').update({ is_active: true }).eq('id', id);
+      showToast(`"${name}" reactivated.`); loadCompanies();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+}
+
+async function deleteCompany(id, name) {
+  openModal({
+    title: `Delete "${name}"?`,
+    body: `<p class="text-muted"><strong>This is permanent.</strong> All products, documents, and users belonging to this company will be deleted. This cannot be undone.</p>`,
+    confirmText: 'Delete Company', confirmCls: 'btn-danger',
+    onConfirm: async (overlay) => {
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Deleting…';
+      try {
+        const { data: products } = await sb.from('products').select('id').eq('org_id', id);
+        const productIds = (products || []).map(p => p.id);
+        if (productIds.length) {
+          await sb.from('compliance_check_results').delete().in('document_id',
+            (await sb.from('documents').select('id').in('product_id', productIds)).data?.map(d => d.id) || []
+          );
+          await sb.from('documents').delete().in('product_id', productIds);
+          await sb.from('product_attachments').delete().in('product_id', productIds);
+          await sb.from('product_document_overrides').delete().in('product_id', productIds);
+          await sb.from('products').delete().in('id', productIds);
+        }
+        await sb.from('user_profiles').delete().eq('org_id', id);
+        const { error } = await sb.from('organizations').delete().eq('id', id);
+        if (error) throw error;
+        overlay.remove(); showToast(`"${name}" deleted.`); loadCompanies(); loadAllUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Delete Company'; }
+    }
+  });
+}
+
+function populateOrgSelect(orgs) {
+  const sel = document.getElementById('inv-org');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select company…</option>' +
+    orgs.map(o => `<option value="${o.id}">${escHtml(o.name)}</option>`).join('');
+}
+
+// ─── Markets ───────────────────────────────────────────────────────────────────
+async function loadMarkets() {
+  const el = document.getElementById('markets-list');
+  try {
+    const { data, error } = await sb.from('markets').select('*').order('region').order('name');
+    if (error) throw error;
+    renderMarkets(data || []);
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function renderMarkets(rows) {
+  const el = document.getElementById('markets-list');
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🌍</div><h3>No markets yet</h3></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Market</th><th>Code</th><th>Region</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(m => `
+          <tr style="${!m.is_active ? 'opacity:.55' : ''}">
+            <td class="td-name">${escHtml(m.name)}</td>
+            <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${escHtml(m.code)}</code></td>
+            <td class="text-sm text-muted">${escHtml(m.region || '—')}</td>
+            <td>${m.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Inactive</span>'}</td>
+            <td class="text-sm text-muted">${formatDate(m.created_at)}</td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" onclick="editMarket('${m.id}','${escHtml(m.name)}','${escHtml(m.code)}','${escHtml(m.region||'')}')">Edit</button>
+              <button class="btn btn-ghost btn-sm" onclick="manageRequirements('${m.id}','${escHtml(m.name)}')">Requirements</button>
+              <button class="btn btn-ghost btn-sm" onclick="toggleMarket('${m.id}',${m.is_active},'${escHtml(m.name)}')">${m.is_active ? 'Deactivate' : 'Activate'}</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function setupMarketBtn() {
+  document.getElementById('btn-new-market').addEventListener('click', () => {
+    openModal({
+      title: 'Add Market',
+      body: `
+        <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="mk-name" placeholder="e.g. Saudi Arabia"></div>
+        <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="mk-code" placeholder="SA" style="text-transform:uppercase"><span class="form-hint">Short uppercase code, no spaces.</span></div>
+        <div class="form-group"><label class="form-label">Region</label><input type="text" id="mk-region" placeholder="e.g. Middle East"></div>`,
+      confirmText: 'Add Market',
+      onConfirm: async (overlay) => {
+        const name   = document.getElementById('mk-name').value.trim();
+        const code   = document.getElementById('mk-code').value.trim().toUpperCase();
+        const region = document.getElementById('mk-region').value.trim();
+        if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
+        const btn = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          const { error } = await sb.from('markets').insert({ name, code, region: region || null });
+          if (error) throw error;
+          overlay.remove(); showToast('Market added.'); loadMarkets();
+        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Add Market'; }
+      }
+    });
+  });
+}
+
+function editMarket(id, name, code, region) {
+  openModal({
+    title: 'Edit Market',
+    body: `
+      <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="emk-name" value="${name}"></div>
+      <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="emk-code" value="${code}" style="text-transform:uppercase"></div>
+      <div class="form-group"><label class="form-label">Region</label><input type="text" id="emk-region" value="${region}"></div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name   = document.getElementById('emk-name').value.trim();
+      const code   = document.getElementById('emk-code').value.trim().toUpperCase();
+      const region = document.getElementById('emk-region').value.trim();
+      if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('markets').update({ name, code, region: region || null }).eq('id', id);
+        if (error) throw error;
+        overlay.remove(); showToast('Market updated.'); loadMarkets();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function toggleMarket(id, isActive, name) {
+  try {
+    await sb.from('markets').update({ is_active: !isActive }).eq('id', id);
+    showToast(`"${name}" ${isActive ? 'deactivated' : 'activated'}.`);
+    loadMarkets();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function manageRequirements(marketId, marketName) {
+  const { data: docTypes } = await sb.from('document_types').select('*').eq('is_active', true).order('sort_order');
+  const { data: existing } = await sb.from('market_document_requirements').select('*').eq('market_id', marketId);
+  const reqMap = {};
+  (existing || []).forEach(r => { reqMap[r.document_type_id] = r.is_required; });
+
+  const globalTypes = (docTypes || []).filter(dt => !dt.org_id);
+
+  const rows = globalTypes.map(dt => {
+    const isRequired = reqMap[dt.id] === true;
+    const isOptional = reqMap[dt.id] === false;
+    const isNA       = reqMap[dt.id] === undefined;
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 4px">${escHtml(dt.name)}</td>
+        <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="required" ${isRequired ? 'checked' : ''}></td>
+        <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="optional" ${isOptional ? 'checked' : ''}></td>
+        <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="na"       ${isNA       ? 'checked' : ''}></td>
+      </tr>`;
+  }).join('');
+
+  openModal({
+    title: `Requirements — ${marketName}`,
+    cls: 'modal-lg',
+    body: `
+      <p class="text-sm text-muted" style="margin-bottom:12px">Set regulatory requirements for this market. These apply to all companies.</p>
+      <table style="width:100%;font-size:.85rem">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 4px">Document Type</th>
+          <th style="padding:6px 8px">Required</th>
+          <th style="padding:6px 8px">Optional</th>
+          <th style="padding:6px 8px">N/A</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await sb.from('market_document_requirements').delete().eq('market_id', marketId);
+        const inserts = [];
+        globalTypes.forEach(dt => {
+          const val = overlay.querySelector(`input[name="req-${dt.id}"]:checked`)?.value;
+          if (val === 'required') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: true });
+          if (val === 'optional') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: false });
+        });
+        if (inserts.length) {
+          const { error } = await sb.from('market_document_requirements').insert(inserts);
+          if (error) throw error;
+        }
+        overlay.remove(); showToast('Requirements saved.');
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+// ─── Users ─────────────────────────────────────────────────────────────────────
+async function loadAllUsers() {
+  const el = document.getElementById('users-list');
+  try {
+    const { data, error } = await sb.from('admin_users_view').select('*');
+    if (error) throw error;
+    allUsers = data || [];
+    renderUsers(allUsers);
+    setupUserSearch();
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function renderUsers(users) {
+  const el = document.getElementById('users-list');
+  if (!users.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><h3>No users</h3></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Email</th><th>Company</th><th>Role</th><th>Since</th>
+          <th style="text-align:center">AI Access</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${users.map(u => renderUserRow(u)).join('')}</tbody>
+    </table>`;
+}
+
+function renderUserRow(u) {
+  const roleLabel  = { admin: 'Platform Admin', org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
+  const roleCls    = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
+  const isSelf     = u.id === currentProfile.id;
+  const isElevated = u.role === 'admin' || u.role === 'org_admin';
+
+  return `
+    <tr>
+      <td class="td-name">${u.full_name || '<em class="text-muted">No name</em>'}</td>
+      <td class="text-sm text-muted">${escHtml(u.email || '—')}</td>
+      <td class="text-sm">${escHtml(u.org_name || '—')}</td>
+      <td><span class="badge ${roleCls}">${roleLabel}</span></td>
+      <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
+      <td style="text-align:center">
+        ${isElevated
+          ? `<span class="text-sm text-muted" title="Admins always have AI access">Always on</span>`
+          : `<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
+              <input type="checkbox" ${u.can_use_ai ? 'checked' : ''}
+                onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
+              <span style="color:${u.can_use_ai ? 'var(--success)' : 'var(--text-muted)'}">${u.can_use_ai ? 'On' : 'Off'}</span>
+            </label>`
+        }
+      </td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
+        ${!isSelf ? `<button class="btn btn-ghost btn-sm" onclick="changeRole('${u.id}','${u.role}','${escHtml(u.full_name||u.email||u.id)}')">Change Role</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="moveUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}','${u.org_id||''}')">Move</button>
+        ${!isSelf ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}')">Remove</button>` : ''}
+      </td>
+    </tr>`;
+}
+
+function setupUserSearch() {
+  const el = document.getElementById('user-search');
+  if (!el || el.dataset.bound) return;
+  el.dataset.bound = '1';
+  el.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    renderUsers(allUsers.filter(u =>
+      (u.full_name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.org_name || '').toLowerCase().includes(q)
+    ));
+  });
+}
+
+async function changeRole(userId, currentRole, name) {
+  openModal({
+    title: `Change Role — ${name}`,
+    body: `
+      <div class="form-group">
+        <label class="form-label">New Role</label>
+        <select id="new-role">
+          ${[['user','User'],['org_admin','Org Admin'],['admin','Platform Admin']].map(([v,l]) =>
+            `<option value="${v}"${v===currentRole?' selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const role = document.getElementById('new-role').value;
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ role }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('Role updated.'); loadAllUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function moveUser(userId, name, currentOrgId) {
+  openModal({
+    title: `Move ${name} to another company`,
+    body: `
+      <div class="form-group">
+        <label class="form-label">Company</label>
+        <select id="move-org">
+          ${allCompanies.map(o => `<option value="${o.id}"${o.id===currentOrgId?' selected':''}>${escHtml(o.name)}</option>`).join('')}
+        </select>
+      </div>`,
+    confirmText: 'Move',
+    onConfirm: async (overlay) => {
+      const orgId = document.getElementById('move-org').value;
+      const btn   = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Moving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ org_id: orgId }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('User moved.'); loadAllUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Move'; }
+    }
+  });
+}
+
+async function removeUser(userId, name) {
+  openModal({
+    title: `Remove ${name}?`,
+    body: `<p class="text-muted">This removes their profile and access. Their auth account remains but they won't be able to use the app.</p>`,
+    confirmText: 'Remove', confirmCls: 'btn-danger',
+    onConfirm: async (overlay) => {
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Removing…';
+      try {
+        const { error } = await sb.from('user_profiles').delete().eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('User removed.'); loadAllUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Remove'; }
+    }
+  });
+}
+
+async function editUserName(userId, currentName) {
+  openModal({
+    title: 'Edit Name',
+    body: `<div class="form-group"><label class="form-label">Full Name</label><input type="text" id="edit-uname" value="${currentName}" placeholder="Full name"></div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name = document.getElementById('edit-uname').value.trim();
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ full_name: name || null }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('Name updated.'); loadAllUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function toggleUserAi(userId, enabled, name) {
+  try {
+    await setUserAiPermission(userId, enabled);
+    showToast(`AI checks ${enabled ? 'enabled' : 'disabled'} for ${name}.`);
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.can_use_ai = enabled;
+    renderUsers(allUsers);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ─── Invite ────────────────────────────────────────────────────────────────────
+function onInviteRoleChange(role) {
+  const aiCb = document.getElementById('inv-ai');
+  if (!aiCb) return;
+  if (role === 'org_admin' || role === 'admin') {
+    aiCb.checked = true; aiCb.disabled = true;
+  } else {
+    aiCb.disabled = false;
+  }
+}
+
+function setupInvite() {
+  document.getElementById('btn-send-invite').addEventListener('click', async () => {
+    const email      = document.getElementById('inv-email').value.trim();
+    const name       = document.getElementById('inv-name').value.trim();
+    const role       = document.getElementById('inv-role').value;
+    const org_id     = document.getElementById('inv-org').value;
+    const can_use_ai = document.getElementById('inv-ai').checked;
+
+    if (!email)  { showToast('Email is required.', 'error'); return; }
+    if (!org_id) { showToast('Please select a company.', 'error'); return; }
+
+    const btn = document.getElementById('btn-send-invite');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const resp = await fetch('https://nqajrmedbjvghvsccbsv.supabase.co/functions/v1/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ email, full_name: name, role, org_id, can_use_ai }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || json.error) throw new Error(json.error || 'Invite failed');
+      document.getElementById('inv-name').value  = '';
+      document.getElementById('inv-email').value = '';
+      document.getElementById('inv-ai').checked  = false;
+      showToast(`Invite sent to ${email}.`);
+      loadAllUsers();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send Invite';
+    }
+  });
+}
+
+// ─── Document Types ────────────────────────────────────────────────────────────
+async function loadDocTypes() {
+  const el = document.getElementById('doctypes-list');
+  try {
+    const types = await getDocumentTypes();
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Code</th><th>Description</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${types.map(t => `
+            <tr style="${!t.is_active ? 'opacity:.55' : ''}">
+              <td class="text-muted text-sm">${t.sort_order}</td>
+              <td class="td-name">${escHtml(t.name)}</td>
+              <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${t.code}</code></td>
+              <td class="text-muted text-sm">${escHtml(t.description || '—')}</td>
+              <td>${t.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Disabled</span>'}</td>
+              <td>
+                <button class="btn btn-ghost btn-sm" onclick="editDocType('${t.id}','${escHtml(t.name)}','${escHtml(t.description||'')}',${t.sort_order})">Edit</button>
+                <button class="btn btn-ghost btn-sm" onclick="toggleDocType('${t.id}',${t.is_active},'${escHtml(t.name)}')">${t.is_active ? 'Disable' : 'Enable'}</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteDocType('${t.id}','${escHtml(t.name)}')">Delete</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function setupDocTypeBtn() {
+  document.getElementById('btn-new-doctype').addEventListener('click', async () => {
+    const markets = await getMarkets();
+    openModal({
+      title: 'Add Document Type',
+      body: `
+        <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="dt-name" placeholder="e.g. Safety Data Sheet"></div>
+        <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="dt-code" placeholder="SDS" style="text-transform:uppercase"><span class="form-hint">Short uppercase identifier, no spaces.</span></div>
+        <div class="form-group"><label class="form-label">Description</label><textarea id="dt-desc" rows="2"></textarea></div>
+        <div class="form-group"><label class="form-label">Sort Order</label><input type="text" id="dt-order" placeholder="10"></div>
+        <div class="form-group">
+          <label class="form-label">Market Requirements</label>
+          ${markets.map(m => `
+            <div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border)">
+              <strong style="width:140px;font-size:.85rem">${m.name} (${m.code})</strong>
+              <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="dt-market-${m.id}" checked> Required</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="dt-optional-${m.id}"> Optional</label>
+            </div>`).join('')}
+        </div>`,
+      confirmText: 'Add',
+      onConfirm: async (overlay) => {
+        const name  = document.getElementById('dt-name').value.trim();
+        const code  = document.getElementById('dt-code').value.trim().toUpperCase().replace(/\s+/g,'_');
+        const desc  = document.getElementById('dt-desc').value.trim();
+        const order = parseInt(document.getElementById('dt-order').value) || 99;
+        if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
+        const btn = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          const { data: newType, error } = await sb.from('document_types').insert({ name, code, description: desc || null, sort_order: order }).select().single();
+          if (error) throw error;
+          const reqs = [];
+          markets.forEach(m => {
+            const required = document.getElementById(`dt-market-${m.id}`)?.checked;
+            const optional = document.getElementById(`dt-optional-${m.id}`)?.checked;
+            if (required || optional) reqs.push({ market_id: m.id, document_type_id: newType.id, is_required: required && !optional });
+          });
+          if (reqs.length) { const { error: reqErr } = await sb.from('market_document_requirements').insert(reqs); if (reqErr) throw reqErr; }
+          overlay.remove(); showToast('Document type added.'); loadDocTypes();
+        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Add'; }
+      }
+    });
+  });
+}
+
+function editDocType(id, name, desc, order) {
+  openModal({
+    title: 'Edit Document Type',
+    body: `
+      <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="edt-name" value="${name}"></div>
+      <div class="form-group"><label class="form-label">Description</label><textarea id="edt-desc" rows="2">${desc}</textarea></div>
+      <div class="form-group"><label class="form-label">Sort Order</label><input type="text" id="edt-order" value="${order}"></div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name  = document.getElementById('edt-name').value.trim();
+      const order = parseInt(document.getElementById('edt-order').value) || 99;
+      if (!name) { showToast('Name required.', 'error'); return; }
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('document_types').update({ name, description: document.getElementById('edt-desc').value.trim() || null, sort_order: order }).eq('id', id);
+        if (error) throw error;
+        overlay.remove(); showToast('Updated.'); loadDocTypes();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function toggleDocType(id, isActive, name) {
+  if (isActive) {
+    openModal({
+      title: `Disable "${name}"?`,
+      body: `<p class="text-muted">This hides <strong>${escHtml(name)}</strong> from all product dashboards. You can re-enable it at any time.</p>`,
+      confirmText: 'Disable', confirmCls: 'btn-warning',
+      onConfirm: async (overlay) => {
+        const btn = overlay.querySelector('#modal-confirm');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try { await setDocTypeActive(id, false); overlay.remove(); showToast(`"${name}" disabled.`); loadDocTypes(); }
+        catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Disable'; }
+      }
+    });
+  } else {
+    try { await setDocTypeActive(id, true); showToast(`"${name}" re-enabled.`); loadDocTypes(); }
+    catch (err) { showToast(err.message, 'error'); }
+  }
+}
+
+async function deleteDocType(id, name) {
+  const { count } = await sb.from('documents').select('id', { count: 'exact', head: true }).eq('document_type_id', id);
+  if (count > 0) { showToast(`Cannot delete — ${count} document(s) use this type.`, 'error'); return; }
+  openModal({
+    title: 'Delete Document Type',
+    body: `<p>Delete <strong>${escHtml(name)}</strong>? This also removes its market requirements.</p>`,
+    confirmText: 'Delete', confirmCls: 'btn-danger',
+    onConfirm: async (overlay) => {
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Deleting…';
+      try {
+        const { error } = await sb.from('document_types').delete().eq('id', id);
+        if (error) throw error;
+        overlay.remove(); showToast('Deleted.'); loadDocTypes();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Delete'; }
+    }
+  });
+}
+
+// ─── Util ──────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>

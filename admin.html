@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Compliance Manager</title>
+  <title>Manage — Compliance Manager</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,6 +27,9 @@
       <a href="admin.html" class="nav-link active">
         <span class="nav-icon">⚙️</span> Manage
       </a>
+      <a href="system.html" class="nav-link" id="nav-system" style="display:none">
+        <span class="nav-icon">🔧</span> System Manager
+      </a>
     </div>
     <div class="sidebar-footer">
       <div class="sidebar-user">
@@ -44,47 +47,19 @@
   <div class="main-content">
     <div class="page-header">
       <div class="page-header-left">
-        <h1 id="page-title">Admin</h1>
-        <p id="page-subtitle">Manage your organisation.</p>
+        <h1>Manage</h1>
+        <p>Manage your team, products and markets.</p>
       </div>
     </div>
 
     <div class="page-body">
-      <div class="tabs" id="tab-bar">
-        <!-- Tabs injected by JS based on role -->
-      </div>
+      <div class="tabs" id="tab-bar"></div>
 
-      <!-- ── Companies tab (platform admin only) ──────────────────────────── -->
-      <div class="tab-panel" id="tab-companies" style="display:none">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Companies</span>
-            <button class="btn btn-primary btn-sm" id="btn-new-company">+ Add Company</button>
-          </div>
-          <div class="table-wrap" id="companies-list">
-            <div class="loader-wrap"><div class="spinner"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Markets tab (platform admin only) ──────────────────────────── -->
-      <div class="tab-panel" id="tab-markets" style="display:none">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Markets</span>
-            <button class="btn btn-primary btn-sm" id="btn-new-market">+ Add Market</button>
-          </div>
-          <div class="table-wrap" id="markets-list">
-            <div class="loader-wrap"><div class="spinner"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Products tab ─────────────────────────────────────────────────── -->
+      <!-- ── Products tab ──────────────────────────────────────────────────── -->
       <div class="tab-panel" id="tab-products" style="display:none">
         <div class="card">
           <div class="card-header">
-            <span class="card-title">All Products</span>
+            <span class="card-title">Products</span>
             <button class="btn btn-primary btn-sm" id="btn-new-product">+ Add Product</button>
           </div>
           <div class="table-wrap" id="products-list">
@@ -93,38 +68,75 @@
         </div>
       </div>
 
-      <!-- ── Document Types tab (platform admin only) ─────────────────────── -->
-      <div class="tab-panel" id="tab-doctypes" style="display:none">
+      <!-- ── Markets tab ───────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-markets" style="display:none">
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Document Types</span>
-            <button class="btn btn-primary btn-sm" id="btn-new-doctype">+ Add Type</button>
+            <span class="card-title">Markets</span>
           </div>
-          <div class="table-wrap" id="doctypes-list">
+          <div class="table-wrap" id="markets-list">
             <div class="loader-wrap"><div class="spinner"></div></div>
           </div>
         </div>
       </div>
 
-      <!-- ── AI Usage tab (org admin only) ─────────────────────────────────── -->
-      <div class="tab-panel" id="tab-ai-usage" style="display:none">
+      <!-- ── Users tab ─────────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-users" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Team</span>
+            <input type="text" id="user-search" placeholder="Search…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;width:180px">
+          </div>
+          <div class="table-wrap" id="users-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
 
-        <!-- Current month stats -->
+        <div class="card mt-24">
+          <div class="card-header"><span class="card-title">Invite New User</span></div>
+          <div class="card-body" style="padding:20px 22px">
+            <p class="text-sm text-muted" style="margin-bottom:18px">The user will receive an email with a sign-in link and set their password on first login.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" id="inv-name" placeholder="Jane Smith">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email Address <span class="required">*</span></label>
+                <input type="email" id="inv-email" placeholder="jane@company.com">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Role</label>
+                <select id="inv-role" onchange="onInviteRoleChange(this.value)">
+                  <option value="user">User</option>
+                  <option value="org_admin">Org Admin</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">AI Access</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                  <input type="checkbox" id="inv-ai">
+                  Allow AI document checks
+                </label>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-send-invite">Send Invite</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AI Usage tab ──────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-ai-usage" style="display:none">
         <div class="card">
           <div class="card-header"><span class="card-title">This Month's AI Usage</span></div>
           <div class="card-body" id="ai-usage-current" style="padding:20px 22px">
             <div class="loader-wrap"><div class="spinner"></div></div>
           </div>
         </div>
-
-        <!-- Monthly cap -->
         <div class="card mt-24">
           <div class="card-header"><span class="card-title">Monthly Spend Cap</span></div>
           <div class="card-body" style="padding:20px 22px">
-            <p class="text-sm text-muted" style="margin-bottom:14px">
-              AI checks stop when this amount is reached in a calendar month. Leave empty for no cap.
-              Each check costs roughly $0.003–$0.005.
-            </p>
+            <p class="text-sm text-muted" style="margin-bottom:14px">AI checks stop when this amount is reached in a calendar month. Leave empty for no cap.</p>
             <div style="display:flex;align-items:flex-end;gap:12px">
               <div class="form-group" style="margin:0">
                 <label class="form-label">Cap (USD)</label>
@@ -135,71 +147,16 @@
             </div>
           </div>
         </div>
-
-        <!-- Per-user AI permission -->
         <div class="card mt-24">
           <div class="card-header"><span class="card-title">User AI Permissions</span></div>
           <div class="table-wrap" id="ai-users-list">
             <div class="loader-wrap"><div class="spinner"></div></div>
           </div>
         </div>
-
-        <!-- Monthly history -->
         <div class="card mt-24">
           <div class="card-header"><span class="card-title">Monthly History</span></div>
           <div class="table-wrap" id="ai-usage-history">
             <div class="loader-wrap"><div class="spinner"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Users tab ────────────────────────────────────────────────────── -->
-      <div class="tab-panel" id="tab-users" style="display:none">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title" id="users-card-title">Users</span>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input type="text" id="user-search" placeholder="Search users…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;width:180px">
-            </div>
-          </div>
-          <div class="table-wrap" id="users-list">
-            <div class="loader-wrap"><div class="spinner"></div></div>
-          </div>
-        </div>
-
-        <!-- Invite card -->
-        <div class="card mt-24">
-          <div class="card-header">
-            <span class="card-title">Invite New User</span>
-          </div>
-          <div class="card-body" style="padding:20px 22px">
-            <p class="text-sm text-muted" style="margin-bottom:18px">
-              The user will receive an email with a sign-in link. They set their password on first login.
-            </p>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Full Name</label>
-                <input type="text" id="inv-name" placeholder="Jane Smith">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email Address <span class="required">*</span></label>
-                <input type="email" id="inv-email" placeholder="jane@company.com">
-              </div>
-              <div class="form-group" id="inv-company-group" style="display:none">
-                <label class="form-label">Company <span class="required">*</span></label>
-                <select id="inv-org">
-                  <option value="">Select company…</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Role</label>
-                <select id="inv-role">
-                  <option value="user">User</option>
-                  <option value="org_admin">Org Admin</option>
-                </select>
-              </div>
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-send-invite">Send Invite</button>
           </div>
         </div>
       </div>
@@ -213,7 +170,6 @@
 <script>
 let currentProfile = null;
 let allUsers = [];
-let allCompanies = [];
 
 async function init() {
   const session = await requireAuth();
@@ -236,40 +192,22 @@ async function init() {
   document.getElementById('user-avatar').textContent = (currentProfile.full_name || 'A')[0].toUpperCase();
 
   if (isPlatformAdmin) {
-    document.getElementById('page-title').textContent    = 'Platform Admin';
-    document.getElementById('page-subtitle').textContent = 'Manage all companies, users, products and document types.';
-    buildTabs([
-      { key: 'companies', label: '🏢 Companies' },
-      { key: 'markets',   label: '🌍 Markets'   },
-      { key: 'products',  label: '📦 Products'  },
-      { key: 'doctypes',  label: '📄 Doc Types'  },
-      { key: 'users',     label: '👥 Users'      },
-    ]);
-    loadCompanies();
-    loadMarkets();
-    loadProducts();
-    loadDocTypes();
-    await loadAllUsers();
-    setupCompanyBtn();
-    setupProductBtn();
-    setupDocTypeBtn();
-    setupInvite(true);
-  } else {
-    document.getElementById('page-title').textContent    = 'Organisation Admin';
-    document.getElementById('page-subtitle').textContent = 'Manage your products and team.';
-    buildTabs([
-      { key: 'products',  label: '📦 Products'  },
-      { key: 'markets',   label: '🌍 Markets'   },
-      { key: 'users',     label: '👥 Users'     },
-      { key: 'ai-usage',  label: '🤖 AI Usage'  },
-    ]);
-    loadProducts();
-    loadOrgMarkets();
-    await loadOrgUsers();
-    setupProductBtn();
-    setupInvite(false);
-    loadAiUsage();
+    document.getElementById('nav-system').style.display = '';
   }
+
+  buildTabs([
+    { key: 'products', label: '📦 Products' },
+    { key: 'markets',  label: '🌍 Markets'  },
+    { key: 'users',    label: '👥 Users'    },
+    { key: 'ai-usage', label: '🤖 AI Usage' },
+  ]);
+
+  loadProducts();
+  loadOrgMarkets();
+  await loadOrgUsers();
+  setupProductBtn();
+  setupInvite();
+  loadAiUsage();
 }
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
@@ -278,11 +216,8 @@ function buildTabs(tabs) {
   bar.innerHTML = tabs.map((t, i) =>
     `<button class="tab-btn${i === 0 ? ' active' : ''}" data-tab="${t.key}">${t.label}</button>`
   ).join('');
-
-  // Show first tab
   document.getElementById('tab-' + tabs[0].key).style.display = '';
   document.getElementById('tab-' + tabs[0].key).classList.add('active');
-
   bar.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       bar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -295,577 +230,9 @@ function buildTabs(tabs) {
   });
 }
 
-// ─── Companies (platform admin) ───────────────────────────────────────────────
-async function loadCompanies() {
-  const el = document.getElementById('companies-list');
-  try {
-    const { data, error } = await sb.from('admin_orgs_view').select('*');
-    if (error) throw error;
-    allCompanies = data || [];
-    renderCompanies(allCompanies);
-    populateOrgSelect(allCompanies);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
-  }
-}
-
-function renderCompanies(rows) {
-  const el = document.getElementById('companies-list');
-  if (!rows.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🏢</div><h3>No companies yet</h3></div>`;
-    return;
-  }
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr><th>Company</th><th>Slug</th><th>Status</th><th>Users</th><th>Products</th><th>Created</th><th></th></tr>
-      </thead>
-      <tbody>
-        ${rows.map(c => `
-          <tr style="${!c.is_active ? 'opacity:.55' : ''}">
-            <td class="td-name">${escHtml(c.name)}</td>
-            <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${escHtml(c.slug)}</code></td>
-            <td>${c.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Inactive</span>'}</td>
-            <td class="text-sm text-muted">${c.user_count}</td>
-            <td class="text-sm text-muted">${c.product_count}</td>
-            <td class="text-sm text-muted">${formatDate(c.created_at)}</td>
-            <td style="display:flex;gap:6px">
-              <button class="btn btn-ghost btn-sm" onclick="editCompany('${c.id}','${escHtml(c.name)}')">Edit</button>
-              <button class="btn btn-ghost btn-sm" onclick="toggleCompany('${c.id}',${c.is_active},'${escHtml(c.name)}')">${c.is_active ? 'Deactivate' : 'Activate'}</button>
-              ${!c.is_active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCompany('${c.id}','${escHtml(c.name)}')">Delete</button>` : ''}
-            </td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
-}
-
-async function toggleCompany(id, isActive, name) {
-  if (isActive) {
-    openModal({
-      title: `Deactivate "${name}"?`,
-      body: `<p class="text-muted">This will also deactivate all products belonging to this company. Users will lose access. You can reactivate at any time.</p>`,
-      confirmText: 'Deactivate', confirmCls: 'btn-warning',
-      onConfirm: async (overlay) => {
-        const btn = overlay.querySelector('#modal-confirm');
-        btn.disabled = true; btn.textContent = 'Deactivating…';
-        try {
-          // Deactivate all products first
-          await sb.from('products').update({ is_active: false }).eq('org_id', id);
-          // Deactivate the org
-          const { error } = await sb.from('organizations').update({ is_active: false }).eq('id', id);
-          if (error) throw error;
-          overlay.remove(); showToast(`"${name}" deactivated.`); loadCompanies();
-        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Deactivate'; }
-      }
-    });
-  } else {
-    try {
-      await sb.from('organizations').update({ is_active: true }).eq('id', id);
-      showToast(`"${name}" reactivated.`); loadCompanies();
-    } catch (err) { showToast(err.message, 'error'); }
-  }
-}
-
-async function deleteCompany(id, name) {
-  openModal({
-    title: `Delete "${name}"?`,
-    body: `<p class="text-muted"><strong>This is permanent.</strong> All products, documents, and users belonging to this company will be deleted. This cannot be undone.</p>`,
-    confirmText: 'Delete Company', confirmCls: 'btn-danger',
-    onConfirm: async (overlay) => {
-      const btn = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Deleting…';
-      try {
-        // Delete in dependency order
-        const { data: products } = await sb.from('products').select('id').eq('org_id', id);
-        const productIds = (products || []).map(p => p.id);
-        if (productIds.length) {
-          await sb.from('compliance_check_results').delete().in('document_id',
-            (await sb.from('documents').select('id').in('product_id', productIds)).data?.map(d => d.id) || []
-          );
-          await sb.from('documents').delete().in('product_id', productIds);
-          await sb.from('product_attachments').delete().in('product_id', productIds);
-          await sb.from('product_document_overrides').delete().in('product_id', productIds);
-          await sb.from('products').delete().in('id', productIds);
-        }
-        await sb.from('user_profiles').delete().eq('org_id', id);
-        const { error } = await sb.from('organizations').delete().eq('id', id);
-        if (error) throw error;
-        overlay.remove(); showToast(`"${name}" deleted.`); loadCompanies(); loadAllUsers();
-      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Delete Company'; }
-    }
-  });
-}
-
-function setupCompanyBtn() {
-  document.getElementById('btn-new-company').addEventListener('click', () => {
-    openModal({
-      title: 'Add Company',
-      body: `
-        <div class="form-group">
-          <label class="form-label">Company Name <span class="required">*</span></label>
-          <input type="text" id="co-name" placeholder="Acme Cosmetics ApS">
-        </div>`,
-      confirmText: 'Add Company',
-      confirmCls: 'btn-primary',
-      onConfirm: async (overlay) => {
-        const name = document.getElementById('co-name').value.trim();
-        if (!name) { showToast('Company name is required.', 'error'); return; }
-        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        const btn  = overlay.querySelector('#modal-confirm');
-        btn.disabled = true; btn.textContent = 'Adding…';
-        try {
-          const { error } = await sb.from('organizations').insert({ name, slug });
-          if (error) throw error;
-          overlay.remove();
-          showToast('Company added.');
-          loadCompanies();
-        } catch (err) {
-          showToast(err.message, 'error');
-          btn.disabled = false; btn.textContent = 'Add Company';
-        }
-      }
-    });
-  });
-}
-
-function editCompany(id, name) {
-  openModal({
-    title: 'Edit Company',
-    body: `
-      <div class="form-group">
-        <label class="form-label">Company Name <span class="required">*</span></label>
-        <input type="text" id="eco-name" value="${name}">
-      </div>`,
-    confirmText: 'Save',
-    onConfirm: async (overlay) => {
-      const newName = document.getElementById('eco-name').value.trim();
-      if (!newName) { showToast('Name required.', 'error'); return; }
-      const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const btn  = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const { error } = await sb.from('organizations').update({ name: newName, slug }).eq('id', id);
-        if (error) throw error;
-        overlay.remove(); showToast('Company updated.'); loadCompanies();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Save';
-      }
-    }
-  });
-}
-
-function populateOrgSelect(orgs) {
-  const sel = document.getElementById('inv-org');
-  sel.innerHTML = '<option value="">Select company…</option>' +
-    orgs.map(o => `<option value="${o.id}">${escHtml(o.name)}</option>`).join('');
-}
-
-// ─── Users ─────────────────────────────────────────────────────────────────────
-async function loadAllUsers() {
-  document.getElementById('users-card-title').textContent = 'All Users';
-  const el = document.getElementById('users-list');
-  try {
-    const { data, error } = await sb.from('admin_users_view').select('*');
-    if (error) throw error;
-    allUsers = data || [];
-    renderUsers(allUsers, true);
-    setupUserSearch();
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
-  }
-}
-
-async function loadOrgUsers() {
-  document.getElementById('users-card-title').textContent = 'Team';
-  const el = document.getElementById('users-list');
-  try {
-    const { data, error } = await sb.from('user_profiles').select('*').order('full_name');
-    if (error) throw error;
-    allUsers = data || [];
-    renderUsers(allUsers, false);
-    setupUserSearch();
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
-  }
-}
-
-function renderUsers(users, showCompany) {
-  const el = document.getElementById('users-list');
-  if (!users.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><h3>No users yet</h3><p>Use the invite form below to add team members.</p></div>`;
-    return;
-  }
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          ${showCompany ? '<th>Company</th>' : ''}
-          <th>Role</th>
-          <th>Since</th>
-          <th style="text-align:center">AI Access</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${users.map(u => renderUserRow(u, showCompany)).join('')}
-      </tbody>
-    </table>`;
-}
-
-function renderUserRow(u, showCompany) {
-  const roleLabel  = { admin: 'Platform Admin', org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
-  const roleCls    = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
-  const isSelf     = u.id === currentProfile.id;
-  const isElevated = u.role === 'admin' || u.role === 'org_admin'; // always have AI
-
-  return `
-    <tr>
-      <td class="td-name">${u.full_name || '<em class="text-muted">No name</em>'}</td>
-      <td class="text-sm text-muted">${escHtml(u.email || '—')}</td>
-      ${showCompany ? `<td class="text-sm">${escHtml(u.org_name || '—')}</td>` : ''}
-      <td><span class="badge ${roleCls}">${roleLabel}</span></td>
-      <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
-      <td style="text-align:center">
-        ${isElevated
-          ? `<span class="text-sm text-muted" title="Admins always have AI access">Always on</span>`
-          : `<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
-              <input type="checkbox" ${u.can_use_ai ? 'checked' : ''}
-                onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
-              <span style="color:${u.can_use_ai ? 'var(--success)' : 'var(--text-muted)'}">${u.can_use_ai ? 'On' : 'Off'}</span>
-            </label>`
-        }
-      </td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
-        ${!isSelf ? `<button class="btn btn-ghost btn-sm" onclick="changeRole('${u.id}','${u.role}','${escHtml(u.full_name||u.email||u.id)}',${showCompany},${showCompany ? `'${u.org_id}'` : 'null'})">Change Role</button>` : ''}
-        ${showCompany ? `<button class="btn btn-ghost btn-sm" onclick="moveUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}','${u.org_id||''}')">Move</button>` : ''}
-        ${!isSelf ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}')">Remove</button>` : ''}
-      </td>
-    </tr>`;
-}
-
-function setupUserSearch() {
-  document.getElementById('user-search').addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase();
-    const filtered = allUsers.filter(u =>
-      (u.full_name || '').toLowerCase().includes(q) ||
-      (u.email || '').toLowerCase().includes(q) ||
-      (u.org_name || '').toLowerCase().includes(q)
-    );
-    renderUsers(filtered, currentProfile.role === 'admin');
-  });
-}
-
-async function changeRole(userId, currentRole, name, showCompany, orgId) {
-  const isPlatformAdmin = currentProfile.role === 'admin';
-  const options = isPlatformAdmin
-    ? [['user','User'],['org_admin','Org Admin'],['admin','Platform Admin']]
-    : [['user','User'],['org_admin','Org Admin']];
-
-  openModal({
-    title: `Change Role — ${name}`,
-    body: `
-      <div class="form-group">
-        <label class="form-label">New Role</label>
-        <select id="new-role">
-          ${options.map(([v,l]) => `<option value="${v}"${v===currentRole?' selected':''}>${l}</option>`).join('')}
-        </select>
-      </div>`,
-    confirmText: 'Save',
-    onConfirm: async (overlay) => {
-      const role = document.getElementById('new-role').value;
-      const btn  = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const { error } = await sb.from('user_profiles').update({ role }).eq('id', userId);
-        if (error) throw error;
-        overlay.remove(); showToast('Role updated.');
-        if (showCompany) loadAllUsers(); else loadOrgUsers();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Save';
-      }
-    }
-  });
-}
-
-async function moveUser(userId, name, currentOrgId) {
-  const orgs = allCompanies;
-  openModal({
-    title: `Move ${name} to another company`,
-    body: `
-      <div class="form-group">
-        <label class="form-label">Company</label>
-        <select id="move-org">
-          ${orgs.map(o => `<option value="${o.id}"${o.id===currentOrgId?' selected':''}>${escHtml(o.name)}</option>`).join('')}
-        </select>
-      </div>`,
-    confirmText: 'Move',
-    onConfirm: async (overlay) => {
-      const orgId = document.getElementById('move-org').value;
-      const btn   = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Moving…';
-      try {
-        const { error } = await sb.from('user_profiles').update({ org_id: orgId }).eq('id', userId);
-        if (error) throw error;
-        overlay.remove(); showToast('User moved.');
-        loadAllUsers();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Move';
-      }
-    }
-  });
-}
-
-async function removeUser(userId, name) {
-  openModal({
-    title: `Remove ${name}?`,
-    body: `<p class="text-muted">This removes their profile and access. Their auth account remains but they won't be able to use the app.</p>`,
-    confirmText: 'Remove',
-    confirmCls: 'btn-danger',
-    onConfirm: async (overlay) => {
-      const btn = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Removing…';
-      try {
-        const { error } = await sb.from('user_profiles').delete().eq('id', userId);
-        if (error) throw error;
-        overlay.remove(); showToast('User removed.');
-        if (currentProfile.role === 'admin') loadAllUsers(); else loadOrgUsers();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Remove';
-      }
-    }
-  });
-}
-
-async function editUserName(userId, currentName) {
-  openModal({
-    title: 'Edit Name',
-    body: `
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" id="edit-uname" value="${currentName}" placeholder="Full name">
-      </div>`,
-    confirmText: 'Save',
-    onConfirm: async (overlay) => {
-      const name = document.getElementById('edit-uname').value.trim();
-      const btn  = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const { error } = await sb.from('user_profiles').update({ full_name: name || null }).eq('id', userId);
-        if (error) throw error;
-        overlay.remove(); showToast('Name updated.');
-        if (currentProfile.role === 'admin') loadAllUsers(); else loadOrgUsers();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Save';
-      }
-    }
-  });
-}
-
-// ─── Invite ────────────────────────────────────────────────────────────────────
-function setupInvite(isPlatformAdmin) {
-  if (isPlatformAdmin) {
-    document.getElementById('inv-company-group').style.display = '';
-    // Platform admin can also grant platform admin role
-    const roleSelect = document.getElementById('inv-role');
-    roleSelect.innerHTML += '<option value="admin">Platform Admin</option>';
-  }
-
-  document.getElementById('btn-send-invite').addEventListener('click', async () => {
-    const email   = document.getElementById('inv-email').value.trim();
-    const name    = document.getElementById('inv-name').value.trim();
-    const role    = document.getElementById('inv-role').value;
-    const org_id  = isPlatformAdmin ? document.getElementById('inv-org').value : currentProfile.org_id;
-
-    if (!email) { showToast('Email is required.', 'error'); return; }
-    if (isPlatformAdmin && !org_id) { showToast('Please select a company.', 'error'); return; }
-
-    const btn = document.getElementById('btn-send-invite');
-    btn.disabled = true; btn.textContent = 'Sending…';
-
-    try {
-      const { data: { session } } = await sb.auth.getSession();
-      const resp = await fetch('https://nqajrmedbjvghvsccbsv.supabase.co/functions/v1/invite-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ email, full_name: name, role, org_id }),
-      });
-      const json = await resp.json();
-      if (!resp.ok || json.error) throw new Error(json.error || 'Invite failed');
-      document.getElementById('inv-name').value  = '';
-      document.getElementById('inv-email').value = '';
-      showToast(`Invite sent to ${email}.`);
-      if (isPlatformAdmin) loadAllUsers(); else loadOrgUsers();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      btn.disabled = false; btn.textContent = 'Send Invite';
-    }
-  });
-}
-
-// ─── AI Usage ─────────────────────────────────────────────────────────────────
-async function loadAiUsage() {
-  try {
-    const [rawChecks, orgResult] = await Promise.all([
-      getAiUsageSummary(),
-      sb.from('organizations').select('id, ai_monthly_cap_usd').eq('id', currentProfile.org_id).single(),
-    ]);
-
-    const capUsd = orgResult.data?.ai_monthly_cap_usd;
-    if (capUsd != null) document.getElementById('ai-cap-input').value = capUsd;
-
-    // Group by YYYY-MM
-    const byMonth = {};
-    rawChecks.forEach(r => {
-      const mk = r.checked_at.slice(0, 7);
-      if (!byMonth[mk]) byMonth[mk] = { count: 0, cost: 0 };
-      byMonth[mk].count++;
-      byMonth[mk].cost += Number(r.cost_usd || 0);
-    });
-
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    const cur = byMonth[thisMonth] || { count: 0, cost: 0 };
-    const capDisplay = capUsd != null ? `$${Number(capUsd).toFixed(2)}` : 'No cap set';
-    const pct = capUsd ? Math.min(100, (cur.cost / Number(capUsd)) * 100) : 0;
-
-    document.getElementById('ai-usage-current').innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:${capUsd ? '16px' : '0'}">
-        <div class="stat-card">
-          <div class="stat-label">Checks this month</div>
-          <div class="stat-value">${cur.count}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Cost this month</div>
-          <div class="stat-value" style="font-size:1.3rem">$${cur.cost.toFixed(4)}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Monthly cap</div>
-          <div class="stat-value" style="font-size:1.1rem">${capDisplay}</div>
-        </div>
-      </div>
-      ${capUsd ? `
-      <div>
-        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;color:var(--text-muted)">
-          <span>Spend progress</span><span>${pct.toFixed(0)}%</span>
-        </div>
-        <div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;border-radius:4px;background:${pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--success)'}"></div>
-        </div>
-      </div>` : ''}`;
-
-    // Cap save/clear handlers
-    document.getElementById('btn-save-cap').onclick = async () => {
-      const val = document.getElementById('ai-cap-input').value.trim();
-      const cap = val === '' ? null : parseFloat(val);
-      if (cap !== null && (isNaN(cap) || cap < 0)) { showToast('Enter a valid amount.', 'error'); return; }
-      try {
-        await updateOrgAiCap(currentProfile.org_id, cap);
-        showToast('Monthly cap saved.');
-        loadAiUsage();
-      } catch (err) { showToast(err.message, 'error'); }
-    };
-    document.getElementById('btn-clear-cap').onclick = async () => {
-      document.getElementById('ai-cap-input').value = '';
-      try {
-        await updateOrgAiCap(currentProfile.org_id, null);
-        showToast('Cap removed.');
-        loadAiUsage();
-      } catch (err) { showToast(err.message, 'error'); }
-    };
-
-    // Per-user AI permission table
-    const usersEl = document.getElementById('ai-users-list');
-    const users = allUsers.filter(u => u.role !== 'admin');
-    if (!users.length) {
-      usersEl.innerHTML = `<div class="empty-state"><p class="text-muted">No users to show.</p></div>`;
-    } else {
-      usersEl.innerHTML = `
-        <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th style="text-align:center">AI Checks</th></tr></thead>
-          <tbody>
-            ${users.map(u => {
-              const roleLbl = { org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
-              const isAdmin = u.role === 'org_admin';
-              const checked = isAdmin || u.can_use_ai;
-              const disabled = isAdmin ? 'disabled title="Org admins always have AI access"' : '';
-              return `<tr>
-                <td class="td-name">${escHtml(u.full_name || '—')}</td>
-                <td class="text-sm text-muted">${escHtml(u.email || '—')}</td>
-                <td><span class="badge ${isAdmin ? 'badge-info' : 'badge-neutral'}">${roleLbl}</span></td>
-                <td style="text-align:center">
-                  <label style="cursor:${isAdmin ? 'default' : 'pointer'};display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
-                    <input type="checkbox" ${checked ? 'checked' : ''} ${disabled}
-                      onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
-                    ${checked ? 'Enabled' : 'Disabled'}
-                  </label>
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>`;
-    }
-
-    // Monthly history
-    const histEl = document.getElementById('ai-usage-history');
-    const months = Object.keys(byMonth).sort().reverse().slice(0, 6);
-    if (!months.length) {
-      histEl.innerHTML = `<div class="empty-state"><p class="text-muted">No AI checks yet.</p></div>`;
-    } else {
-      histEl.innerHTML = `
-        <table>
-          <thead><tr><th>Month</th><th>Checks</th><th>Cost (USD)</th></tr></thead>
-          <tbody>
-            ${months.map(m => `
-              <tr>
-                <td>${formatMonth(m)}</td>
-                <td>${byMonth[m].count}</td>
-                <td class="text-sm text-muted">$${byMonth[m].cost.toFixed(4)}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>`;
-    }
-
-  } catch (err) {
-    document.getElementById('ai-usage-current').innerHTML = `<p class="text-muted">${err.message}</p>`;
-  }
-}
-
-async function toggleUserAi(userId, enabled, name) {
-  try {
-    await setUserAiPermission(userId, enabled);
-    showToast(`AI checks ${enabled ? 'enabled' : 'disabled'} for ${name}.`);
-    // Update in-memory state and re-render both tables
-    const u = allUsers.find(x => x.id === userId);
-    if (u) u.can_use_ai = enabled;
-    renderUsers(allUsers, currentProfile.role === 'admin');
-    if (currentProfile.role === 'org_admin') loadAiUsage(); // refresh AI Usage tab (org admins only)
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-function formatMonth(m) {
-  const [y, mo] = m.split('-');
-  return new Date(parseInt(y), parseInt(mo) - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
-}
-
 // ─── Markets ───────────────────────────────────────────────────────────────────
 async function loadOrgMarkets() {
   const el = document.getElementById('markets-list');
-  // Hide the Add Market button — org admins cannot add markets
-  const addBtn = document.getElementById('btn-new-market');
-  if (addBtn) addBtn.style.display = 'none';
   try {
     const { data, error } = await sb.from('markets').select('*').eq('is_active', true).order('name');
     if (error) throw error;
@@ -893,180 +260,45 @@ async function loadOrgMarkets() {
   }
 }
 
-async function loadMarkets() {
-  const el = document.getElementById('markets-list');
-  try {
-    const { data, error } = await sb.from('markets').select('*').order('region').order('name');
-    if (error) throw error;
-    renderMarkets(data || []);
-    setupMarketBtn();
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
-  }
-}
-
-function renderMarkets(rows) {
-  const el = document.getElementById('markets-list');
-  if (!rows.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🌍</div><h3>No markets yet</h3></div>`;
-    return;
-  }
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr><th>Market</th><th>Code</th><th>Region</th><th>Status</th><th>Created</th><th></th></tr>
-      </thead>
-      <tbody>
-        ${rows.map(m => `
-          <tr style="${!m.is_active ? 'opacity:.55' : ''}">
-            <td class="td-name">${escHtml(m.name)}</td>
-            <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${escHtml(m.code)}</code></td>
-            <td class="text-sm text-muted">${escHtml(m.region || '—')}</td>
-            <td>${m.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Inactive</span>'}</td>
-            <td class="text-sm text-muted">${formatDate(m.created_at)}</td>
-            <td style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn btn-ghost btn-sm" onclick="editMarket('${m.id}','${escHtml(m.name)}','${escHtml(m.code)}','${escHtml(m.region||'')}','${escHtml(m.description||'')}')">Edit</button>
-              <button class="btn btn-ghost btn-sm" onclick="manageRequirements('${m.id}','${escHtml(m.name)}')">Requirements</button>
-              <button class="btn btn-ghost btn-sm" onclick="toggleMarket('${m.id}',${m.is_active},'${escHtml(m.name)}')">${m.is_active ? 'Deactivate' : 'Activate'}</button>
-            </td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
-}
-
-function setupMarketBtn() {
-  const btn = document.getElementById('btn-new-market');
-  if (!btn || btn.dataset.bound) return;
-  btn.dataset.bound = '1';
-  btn.addEventListener('click', () => {
-    openModal({
-      title: 'Add Market',
-      body: `
-        <div class="form-group"><label class="form-label">Market Name <span class="required">*</span></label><input type="text" id="mk-name" placeholder="e.g. Saudi Arabia"></div>
-        <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="mk-code" placeholder="SA" style="text-transform:uppercase"><span class="form-hint">Short uppercase code, no spaces.</span></div>
-        <div class="form-group"><label class="form-label">Region</label><input type="text" id="mk-region" placeholder="e.g. Middle East"></div>
-        <div class="form-group"><label class="form-label">Description</label><textarea id="mk-desc" rows="2"></textarea></div>`,
-      confirmText: 'Add Market',
-      onConfirm: async (overlay) => {
-        const name   = document.getElementById('mk-name').value.trim();
-        const code   = document.getElementById('mk-code').value.trim().toUpperCase();
-        const region = document.getElementById('mk-region').value.trim();
-        const desc   = document.getElementById('mk-desc').value.trim();
-        if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
-        const btn = overlay.querySelector('#modal-confirm');
-        btn.disabled = true; btn.textContent = 'Adding…';
-        try {
-          const { error } = await sb.from('markets').insert({ name, code, region: region || null, description: desc || null });
-          if (error) throw error;
-          overlay.remove(); showToast('Market added.'); loadMarkets();
-        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Add Market'; }
-      }
-    });
-  });
-}
-
-function editMarket(id, name, code, region, desc) {
-  openModal({
-    title: 'Edit Market',
-    body: `
-      <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="emk-name" value="${name}"></div>
-      <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="emk-code" value="${code}" style="text-transform:uppercase"></div>
-      <div class="form-group"><label class="form-label">Region</label><input type="text" id="emk-region" value="${region}"></div>
-      <div class="form-group"><label class="form-label">Description</label><textarea id="emk-desc" rows="2">${desc}</textarea></div>`,
-    confirmText: 'Save',
-    onConfirm: async (overlay) => {
-      const name   = document.getElementById('emk-name').value.trim();
-      const code   = document.getElementById('emk-code').value.trim().toUpperCase();
-      const region = document.getElementById('emk-region').value.trim();
-      const desc   = document.getElementById('emk-desc').value.trim();
-      if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
-      const btn = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const { error } = await sb.from('markets').update({ name, code, region: region || null, description: desc || null }).eq('id', id);
-        if (error) throw error;
-        overlay.remove(); showToast('Market updated.'); loadMarkets();
-      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
-    }
-  });
-}
-
-async function toggleMarket(id, isActive, name) {
-  try {
-    await sb.from('markets').update({ is_active: !isActive }).eq('id', id);
-    showToast(`"${name}" ${isActive ? 'deactivated' : 'activated'}.`);
-    loadMarkets();
-  } catch (err) { showToast(err.message, 'error'); }
-}
-
 async function manageRequirements(marketId, marketName) {
-  const profile    = await getUserProfile();
-  const isPlatform = profile?.role === 'admin';
-  const orgId      = profile?.org_id;
+  const orgId = currentProfile.org_id;
 
   const { data: docTypes } = await sb.from('document_types').select('*').eq('is_active', true).order('sort_order');
   const { data: existing } = await sb.from('market_document_requirements').select('*').eq('market_id', marketId);
   const reqMap = {};
   (existing || []).forEach(r => { reqMap[r.document_type_id] = r.is_required; });
 
-  // Global-only types (org_id IS NULL)
   const globalTypes = (docTypes || []).filter(dt => !dt.org_id);
 
-  let orgPromoted  = new Set();  // optional globals promoted to required by this org
-  let orgCustomTypes = [];       // this org's custom types for this market
+  const orgReqs       = await getOrgDocumentRequirements(orgId);
+  const orgPromoted   = new Set(orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id));
+  const allOrgTypes   = await getOrgDocumentTypes();
+  const customInMkt   = new Set(orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id));
+  const orgCustomTypes = allOrgTypes.map(dt => ({ ...dt, inMarket: customInMkt.has(dt.id) }));
 
-  if (!isPlatform && orgId) {
-    const orgReqs = await getOrgDocumentRequirements(orgId);
-    orgReqs.filter(r => r.market_id === marketId).forEach(r => orgPromoted.add(r.document_type_id));
-    // Fetch this org's custom doc types that are active for this market
-    const allOrgTypes = await getOrgDocumentTypes();
-    // Which custom types are already added to this market?
-    const customInMarket = new Set(orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id));
-    orgCustomTypes = allOrgTypes.map(dt => ({ ...dt, inMarket: customInMarket.has(dt.id) }));
-  }
-
-  // Rows for global doc types
   const globalRows = globalTypes.map(dt => {
-    const globalIsRequired = reqMap[dt.id] === true;
-    const globalIsOptional = reqMap[dt.id] === false;
-    const isNA = reqMap[dt.id] === undefined;
-
-    if (isPlatform) {
+    if (reqMap[dt.id] === undefined) return ''; // N/A — hide
+    if (reqMap[dt.id] === true) {
       return `
         <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:8px 4px">${escHtml(dt.name)}</td>
-          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="required" ${globalIsRequired ? 'checked' : ''}></td>
-          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="optional" ${globalIsOptional ? 'checked' : ''}></td>
-          <td style="text-align:center;padding:8px"><input type="radio" name="req-${dt.id}" value="na"       ${isNA ? 'checked' : ''}></td>
+          <td style="padding:8px 4px"><span class="badge badge-success" style="font-size:.75rem">Regulatory requirement</span></td>
         </tr>`;
-    } else {
-      if (isNA) return ''; // hide N/A types from org admin
-      if (globalIsRequired) {
-        return `
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px 4px">${escHtml(dt.name)}</td>
-            <td style="padding:8px 4px" colspan="2">
-              <span class="badge badge-success" style="font-size:.75rem">Regulatory requirement</span>
-            </td>
-          </tr>`;
-      } else {
-        const promoted = orgPromoted.has(dt.id);
-        return `
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px 4px">${escHtml(dt.name)}</td>
-            <td style="padding:8px 4px">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem">
-                <input type="checkbox" name="org-req-${dt.id}" ${promoted ? 'checked' : ''}>
-                Require for our company
-              </label>
-            </td>
-          </tr>`;
-      }
     }
+    const promoted = orgPromoted.has(dt.id);
+    return `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 4px">${escHtml(dt.name)}</td>
+        <td style="padding:8px 4px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem">
+            <input type="checkbox" name="org-req-${dt.id}" ${promoted ? 'checked' : ''}>
+            Require for our company
+          </label>
+        </td>
+      </tr>`;
   }).join('');
 
-  // Custom docs section (org admin only)
-  const customSection = isPlatform ? '' : `
+  const customSection = `
     <tr><td colspan="2" style="padding:14px 4px 6px;font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Company-specific documents</td></tr>
     ${orgCustomTypes.map(dt => `
       <tr style="border-bottom:1px solid var(--border)" id="custom-row-${dt.id}">
@@ -1090,58 +322,25 @@ async function manageRequirements(marketId, marketName) {
       </td>
     </tr>`;
 
-  const relevantGlobalTypes = isPlatform ? globalTypes : globalTypes.filter(dt => reqMap[dt.id] !== undefined);
+  const optionalGlobals = globalTypes.filter(dt => reqMap[dt.id] === false);
 
   openModal({
     title: `Requirements — ${marketName}`,
     cls: 'modal-lg',
     body: `
-      <p class="text-sm text-muted" style="margin-bottom:12px">
-        ${isPlatform
-          ? 'Set regulatory requirements for this market. These apply to all companies.'
-          : 'Locked rows are regulatory requirements. Optionals can be promoted. Add company-specific documents at the bottom.'}
-      </p>
+      <p class="text-sm text-muted" style="margin-bottom:12px">Locked rows are regulatory requirements. Optionals can be promoted. Add company-specific documents at the bottom.</p>
       <table style="width:100%;font-size:.85rem">
-        <thead><tr>
-          <th style="text-align:left;padding:6px 4px">Document Type</th>
-          ${isPlatform
-            ? '<th style="padding:6px 8px">Required</th><th style="padding:6px 8px">Optional</th><th style="padding:6px 8px">N/A</th>'
-            : '<th style="padding:6px 8px"></th>'}
-        </tr></thead>
-        <tbody>
-          ${globalRows}
-          ${customSection}
-        </tbody>
+        <thead><tr><th style="text-align:left;padding:6px 4px">Document Type</th><th style="padding:6px 8px"></th></tr></thead>
+        <tbody>${globalRows}${customSection}</tbody>
       </table>`,
     confirmText: 'Save',
     onConfirm: async (overlay) => {
       const btn = overlay.querySelector('#modal-confirm');
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        if (isPlatform) {
-          await sb.from('market_document_requirements').delete().eq('market_id', marketId);
-          const inserts = [];
-          globalTypes.forEach(dt => {
-            const val = overlay.querySelector(`input[name="req-${dt.id}"]:checked`)?.value;
-            if (val === 'required') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: true });
-            if (val === 'optional') inserts.push({ market_id: marketId, document_type_id: dt.id, is_required: false });
-          });
-          if (inserts.length) {
-            const { error } = await sb.from('market_document_requirements').insert(inserts);
-            if (error) throw error;
-          }
-        } else {
-          // Promoted optional globals
-          const promoted = relevantGlobalTypes
-            .filter(dt => reqMap[dt.id] === false)
-            .filter(dt => overlay.querySelector(`input[name="org-req-${dt.id}"]`)?.checked)
-            .map(dt => dt.id);
-          // Custom types checked for this market
-          const customChecked = orgCustomTypes
-            .filter(dt => overlay.querySelector(`input[name="custom-req-${dt.id}"]`)?.checked)
-            .map(dt => dt.id);
-          await setOrgDocumentRequirements(orgId, marketId, [...promoted, ...customChecked]);
-        }
+        const promoted     = optionalGlobals.filter(dt => overlay.querySelector(`input[name="org-req-${dt.id}"]`)?.checked).map(dt => dt.id);
+        const customChecked = orgCustomTypes.filter(dt => overlay.querySelector(`input[name="custom-req-${dt.id}"]`)?.checked).map(dt => dt.id);
+        await setOrgDocumentRequirements(orgId, marketId, [...promoted, ...customChecked]);
         overlay.remove(); showToast('Requirements saved.');
       } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
     }
@@ -1154,13 +353,11 @@ async function addCustomDocType(marketId) {
   if (!name) { showToast('Enter a document name.', 'error'); return; }
   try {
     const dt    = await createOrgDocumentType(name);
-    const orgId = (await getUserProfile())?.org_id;
-    // Auto-add to this market's org requirements
-    const orgReqs = await getOrgDocumentRequirements(orgId);
+    const orgId = currentProfile.org_id;
+    const orgReqs    = await getOrgDocumentRequirements(orgId);
     const currentIds = orgReqs.filter(r => r.market_id === marketId).map(r => r.document_type_id);
     await setOrgDocumentRequirements(orgId, marketId, [...currentIds, dt.id]);
     showToast(`"${name}" added.`);
-    // Refresh modal
     document.getElementById('modal-overlay')?.remove();
     const market = (await sb.from('markets').select('name').eq('id', marketId).single()).data;
     manageRequirements(marketId, market?.name || marketId);
@@ -1176,12 +373,319 @@ async function deleteCustomDocType(id, name) {
   } catch (err) { showToast(err.message, 'error'); }
 }
 
+// ─── Users ─────────────────────────────────────────────────────────────────────
+async function loadOrgUsers() {
+  const el = document.getElementById('users-list');
+  try {
+    const { data, error } = await sb.from('user_profiles').select('*').order('full_name');
+    if (error) throw error;
+    allUsers = data || [];
+    renderUsers(allUsers);
+    setupUserSearch();
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function renderUsers(users) {
+  const el = document.getElementById('users-list');
+  if (!users.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><h3>No users yet</h3><p>Use the invite form below to add team members.</p></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Since</th>
+          <th style="text-align:center">AI Access</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${users.map(u => renderUserRow(u)).join('')}</tbody>
+    </table>`;
+}
+
+function renderUserRow(u) {
+  const roleLabel  = { admin: 'Platform Admin', org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
+  const roleCls    = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
+  const isSelf     = u.id === currentProfile.id;
+  const isElevated = u.role === 'admin' || u.role === 'org_admin';
+
+  return `
+    <tr>
+      <td class="td-name">${u.full_name || '<em class="text-muted">No name</em>'}</td>
+      <td class="text-sm text-muted">${escHtml(u.email || '—')}</td>
+      <td><span class="badge ${roleCls}">${roleLabel}</span></td>
+      <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
+      <td style="text-align:center">
+        ${isElevated
+          ? `<span class="text-sm text-muted" title="Admins always have AI access">Always on</span>`
+          : `<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
+              <input type="checkbox" ${u.can_use_ai ? 'checked' : ''}
+                onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
+              <span style="color:${u.can_use_ai ? 'var(--success)' : 'var(--text-muted)'}">${u.can_use_ai ? 'On' : 'Off'}</span>
+            </label>`
+        }
+      </td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
+        ${!isSelf ? `<button class="btn btn-ghost btn-sm" onclick="changeRole('${u.id}','${u.role}','${escHtml(u.full_name||u.email||u.id)}')">Change Role</button>` : ''}
+        ${!isSelf ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeUser('${u.id}','${escHtml(u.full_name||u.email||u.id)}')">Remove</button>` : ''}
+      </td>
+    </tr>`;
+}
+
+function setupUserSearch() {
+  const el = document.getElementById('user-search');
+  if (!el || el.dataset.bound) return;
+  el.dataset.bound = '1';
+  el.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    renderUsers(allUsers.filter(u =>
+      (u.full_name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q)
+    ));
+  });
+}
+
+async function changeRole(userId, currentRole, name) {
+  openModal({
+    title: `Change Role — ${name}`,
+    body: `
+      <div class="form-group">
+        <label class="form-label">New Role</label>
+        <select id="new-role">
+          ${[['user','User'],['org_admin','Org Admin']].map(([v,l]) =>
+            `<option value="${v}"${v===currentRole?' selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const role = document.getElementById('new-role').value;
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ role }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('Role updated.'); loadOrgUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+async function removeUser(userId, name) {
+  openModal({
+    title: `Remove ${name}?`,
+    body: `<p class="text-muted">This removes their profile and access. Their auth account remains but they won't be able to use the app.</p>`,
+    confirmText: 'Remove', confirmCls: 'btn-danger',
+    onConfirm: async (overlay) => {
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Removing…';
+      try {
+        const { error } = await sb.from('user_profiles').delete().eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('User removed.'); loadOrgUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Remove'; }
+    }
+  });
+}
+
+async function editUserName(userId, currentName) {
+  openModal({
+    title: 'Edit Name',
+    body: `
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="edit-uname" value="${currentName}" placeholder="Full name">
+      </div>`,
+    confirmText: 'Save',
+    onConfirm: async (overlay) => {
+      const name = document.getElementById('edit-uname').value.trim();
+      const btn  = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.from('user_profiles').update({ full_name: name || null }).eq('id', userId);
+        if (error) throw error;
+        overlay.remove(); showToast('Name updated.'); loadOrgUsers();
+      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
+    }
+  });
+}
+
+// ─── Invite ────────────────────────────────────────────────────────────────────
+function onInviteRoleChange(role) {
+  const aiCb = document.getElementById('inv-ai');
+  if (!aiCb) return;
+  if (role === 'org_admin' || role === 'admin') {
+    aiCb.checked = true; aiCb.disabled = true;
+  } else {
+    aiCb.disabled = false;
+  }
+}
+
+function setupInvite() {
+  document.getElementById('btn-send-invite').addEventListener('click', async () => {
+    const email      = document.getElementById('inv-email').value.trim();
+    const name       = document.getElementById('inv-name').value.trim();
+    const role       = document.getElementById('inv-role').value;
+    const can_use_ai = document.getElementById('inv-ai').checked;
+
+    if (!email) { showToast('Email is required.', 'error'); return; }
+
+    const btn = document.getElementById('btn-send-invite');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const resp = await fetch('https://nqajrmedbjvghvsccbsv.supabase.co/functions/v1/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ email, full_name: name, role, org_id: currentProfile.org_id, can_use_ai }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || json.error) throw new Error(json.error || 'Invite failed');
+      document.getElementById('inv-name').value  = '';
+      document.getElementById('inv-email').value = '';
+      document.getElementById('inv-ai').checked  = false;
+      showToast(`Invite sent to ${email}.`);
+      loadOrgUsers();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send Invite';
+    }
+  });
+}
+
+// ─── AI Usage ─────────────────────────────────────────────────────────────────
+async function loadAiUsage() {
+  try {
+    const [rawChecks, orgResult] = await Promise.all([
+      getAiUsageSummary(),
+      sb.from('organizations').select('id, ai_monthly_cap_usd').eq('id', currentProfile.org_id).single(),
+    ]);
+
+    const capUsd = orgResult.data?.ai_monthly_cap_usd;
+    if (capUsd != null) document.getElementById('ai-cap-input').value = capUsd;
+
+    const byMonth = {};
+    rawChecks.forEach(r => {
+      const mk = r.checked_at.slice(0, 7);
+      if (!byMonth[mk]) byMonth[mk] = { count: 0, cost: 0 };
+      byMonth[mk].count++;
+      byMonth[mk].cost += Number(r.cost_usd || 0);
+    });
+
+    const thisMonth  = new Date().toISOString().slice(0, 7);
+    const cur        = byMonth[thisMonth] || { count: 0, cost: 0 };
+    const capDisplay = capUsd != null ? `$${Number(capUsd).toFixed(2)}` : 'No cap set';
+    const pct        = capUsd ? Math.min(100, (cur.cost / Number(capUsd)) * 100) : 0;
+
+    document.getElementById('ai-usage-current').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:${capUsd ? '16px' : '0'}">
+        <div class="stat-card"><div class="stat-label">Checks this month</div><div class="stat-value">${cur.count}</div></div>
+        <div class="stat-card"><div class="stat-label">Cost this month</div><div class="stat-value" style="font-size:1.3rem">$${cur.cost.toFixed(4)}</div></div>
+        <div class="stat-card"><div class="stat-label">Monthly cap</div><div class="stat-value" style="font-size:1.1rem">${capDisplay}</div></div>
+      </div>
+      ${capUsd ? `
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;color:var(--text-muted)">
+          <span>Spend progress</span><span>${pct.toFixed(0)}%</span>
+        </div>
+        <div style="height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;border-radius:4px;background:${pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--success)'}"></div>
+        </div>
+      </div>` : ''}`;
+
+    document.getElementById('btn-save-cap').onclick = async () => {
+      const val = document.getElementById('ai-cap-input').value.trim();
+      const cap = val === '' ? null : parseFloat(val);
+      if (cap !== null && (isNaN(cap) || cap < 0)) { showToast('Enter a valid amount.', 'error'); return; }
+      try { await updateOrgAiCap(currentProfile.org_id, cap); showToast('Monthly cap saved.'); loadAiUsage(); }
+      catch (err) { showToast(err.message, 'error'); }
+    };
+    document.getElementById('btn-clear-cap').onclick = async () => {
+      document.getElementById('ai-cap-input').value = '';
+      try { await updateOrgAiCap(currentProfile.org_id, null); showToast('Cap removed.'); loadAiUsage(); }
+      catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const usersEl = document.getElementById('ai-users-list');
+    const users   = allUsers.filter(u => u.role !== 'admin');
+    if (!users.length) {
+      usersEl.innerHTML = `<div class="empty-state"><p class="text-muted">No users to show.</p></div>`;
+    } else {
+      usersEl.innerHTML = `
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th style="text-align:center">AI Checks</th></tr></thead>
+          <tbody>
+            ${users.map(u => {
+              const isElevated = u.role === 'org_admin';
+              return `<tr>
+                <td class="td-name">${escHtml(u.full_name || '—')}</td>
+                <td class="text-sm text-muted">${escHtml(u.email || '—')}</td>
+                <td><span class="badge ${isElevated ? 'badge-info' : 'badge-neutral'}">${isElevated ? 'Org Admin' : 'User'}</span></td>
+                <td style="text-align:center">
+                  ${isElevated
+                    ? `<span class="text-sm text-muted">Always on</span>`
+                    : `<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
+                        <input type="checkbox" ${u.can_use_ai ? 'checked' : ''}
+                          onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
+                        ${u.can_use_ai ? 'Enabled' : 'Disabled'}
+                      </label>`
+                  }
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    const histEl = document.getElementById('ai-usage-history');
+    const months = Object.keys(byMonth).sort().reverse().slice(0, 6);
+    if (!months.length) {
+      histEl.innerHTML = `<div class="empty-state"><p class="text-muted">No AI checks yet.</p></div>`;
+    } else {
+      histEl.innerHTML = `
+        <table>
+          <thead><tr><th>Month</th><th>Checks</th><th>Cost (USD)</th></tr></thead>
+          <tbody>${months.map(m => `
+            <tr>
+              <td>${formatMonth(m)}</td>
+              <td>${byMonth[m].count}</td>
+              <td class="text-sm text-muted">$${byMonth[m].cost.toFixed(4)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    }
+  } catch (err) {
+    document.getElementById('ai-usage-current').innerHTML = `<p class="text-muted">${err.message}</p>`;
+  }
+}
+
+async function toggleUserAi(userId, enabled, name) {
+  try {
+    await setUserAiPermission(userId, enabled);
+    showToast(`AI checks ${enabled ? 'enabled' : 'disabled'} for ${name}.`);
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.can_use_ai = enabled;
+    renderUsers(allUsers);
+    loadAiUsage();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function formatMonth(m) {
+  const [y, mo] = m.split('-');
+  return new Date(parseInt(y), parseInt(mo) - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+}
+
 // ─── Products ──────────────────────────────────────────────────────────────────
 async function loadProducts() {
   const el = document.getElementById('products-list');
   try {
-    const { data: products, error: pErr } = await sb.from('products').select('*').order('name');
-    if (pErr) throw pErr;
+    const { data: products, error } = await sb.from('products').select('*').order('name');
+    if (error) throw error;
     if (!products.length) {
       el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><h3>No products yet</h3></div>`;
       return;
@@ -1212,15 +716,8 @@ async function loadProducts() {
 function setupProductBtn() {
   document.getElementById('btn-new-product').addEventListener('click', async () => {
     const markets = (await getMarkets()).filter(m => m.is_active);
-    const marketCheckboxes = markets.map(m =>
-      `<label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
-        <input type="checkbox" id="pmkt-${m.id}" value="${m.id}">
-        ${m.name} <span class="text-muted" style="font-size:.8rem">(${m.code})</span>
-      </label>`
-    ).join('');
     openModal({
-      title: 'Add Product',
-      cls: 'modal-lg',
+      title: 'Add Product', cls: 'modal-lg',
       body: `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
           <div style="display:flex;flex-direction:column;gap:16px">
@@ -1230,16 +727,21 @@ function setupProductBtn() {
           </div>
           <div class="form-group">
             <label class="form-label">Markets <span class="required">*</span></label>
-            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">${marketCheckboxes}</div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
+              ${markets.map(m => `<label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
+                <input type="checkbox" id="pmkt-${m.id}">
+                ${m.name} <span class="text-muted" style="font-size:.8rem">(${m.code})</span>
+              </label>`).join('')}
+            </div>
             <span class="form-hint">Select all markets this product will be sold in.</span>
           </div>
         </div>`,
       confirmText: 'Add Product',
       onConfirm: async (overlay) => {
-        const name = document.getElementById('p-name').value.trim();
+        const name      = document.getElementById('p-name').value.trim();
         const marketIds = markets.filter(m => document.getElementById(`pmkt-${m.id}`)?.checked).map(m => m.id);
-        if (!name) { showToast('Name required.', 'error'); return; }
-        if (!marketIds.length) { showToast('Select at least one market.', 'error'); return; }
+        if (!name)            { showToast('Name required.', 'error'); return; }
+        if (!marketIds.length){ showToast('Select at least one market.', 'error'); return; }
         const btn = overlay.querySelector('#modal-confirm');
         btn.disabled = true; btn.textContent = 'Adding…';
         try {
@@ -1284,8 +786,7 @@ async function deleteProduct(id, name) {
   openModal({
     title: `Delete "${name}"?`,
     body: `<p class="text-muted">This permanently deletes the product and all its documents. This cannot be undone.</p>`,
-    confirmText: 'Delete',
-    confirmCls: 'btn-danger',
+    confirmText: 'Delete', confirmCls: 'btn-danger',
     onConfirm: async (overlay) => {
       const btn = overlay.querySelector('#modal-confirm');
       btn.disabled = true; btn.textContent = 'Deleting…';
@@ -1293,147 +794,6 @@ async function deleteProduct(id, name) {
         const { error } = await sb.from('products').delete().eq('id', id);
         if (error) throw error;
         overlay.remove(); showToast('Product deleted.'); loadProducts();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false; btn.textContent = 'Delete';
-      }
-    }
-  });
-}
-
-// ─── Document Types ────────────────────────────────────────────────────────────
-async function loadDocTypes() {
-  const el = document.getElementById('doctypes-list');
-  try {
-    const types = await getDocumentTypes();
-    el.innerHTML = `
-      <table>
-        <thead><tr><th>#</th><th>Name</th><th>Code</th><th>Description</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          ${types.map(t => `
-            <tr style="${!t.is_active ? 'opacity:.55' : ''}">
-              <td class="text-muted text-sm">${t.sort_order}</td>
-              <td class="td-name">${escHtml(t.name)}</td>
-              <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:.8rem">${t.code}</code></td>
-              <td class="text-muted text-sm">${escHtml(t.description || '—')}</td>
-              <td>${t.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Disabled</span>'}</td>
-              <td>
-                <button class="btn btn-ghost btn-sm" onclick="editDocType('${t.id}','${escHtml(t.name)}','${escHtml(t.description||'')}',${t.sort_order})">Edit</button>
-                <button class="btn btn-ghost btn-sm" onclick="toggleDocType('${t.id}',${t.is_active},'${escHtml(t.name)}')">${t.is_active ? 'Disable' : 'Enable'}</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteDocType('${t.id}','${escHtml(t.name)}')">Delete</button>
-              </td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
-  }
-}
-
-function setupDocTypeBtn() {
-  document.getElementById('btn-new-doctype').addEventListener('click', async () => {
-    const markets = await getMarkets();
-    const marketCheckboxes = markets.map(m => `
-      <div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <strong style="width:140px;font-size:.85rem">${m.name} (${m.code})</strong>
-        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
-          <input type="checkbox" id="dt-market-${m.id}" checked> Required
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
-          <input type="checkbox" id="dt-optional-${m.id}"> Optional
-        </label>
-      </div>`).join('');
-
-    openModal({
-      title: 'Add Document Type',
-      body: `
-        <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="dt-name" placeholder="e.g. Safety Data Sheet"></div>
-        <div class="form-group"><label class="form-label">Code <span class="required">*</span></label><input type="text" id="dt-code" placeholder="SDS" style="text-transform:uppercase"><span class="form-hint">Short uppercase identifier, no spaces.</span></div>
-        <div class="form-group"><label class="form-label">Description</label><textarea id="dt-desc" rows="2"></textarea></div>
-        <div class="form-group"><label class="form-label">Sort Order</label><input type="text" id="dt-order" placeholder="10"></div>
-        <div class="form-group"><label class="form-label">Market Requirements</label>${marketCheckboxes}</div>`,
-      confirmText: 'Add',
-      onConfirm: async (overlay) => {
-        const name  = document.getElementById('dt-name').value.trim();
-        const code  = document.getElementById('dt-code').value.trim().toUpperCase().replace(/\s+/g,'_');
-        const desc  = document.getElementById('dt-desc').value.trim();
-        const order = parseInt(document.getElementById('dt-order').value) || 99;
-        if (!name || !code) { showToast('Name and Code are required.', 'error'); return; }
-        const btn = overlay.querySelector('#modal-confirm');
-        btn.disabled = true; btn.textContent = 'Adding…';
-        try {
-          const { data: newType, error } = await sb.from('document_types').insert({ name, code, description: desc || null, sort_order: order }).select().single();
-          if (error) throw error;
-          const reqs = [];
-          markets.forEach(m => {
-            const required = document.getElementById(`dt-market-${m.id}`)?.checked;
-            const optional = document.getElementById(`dt-optional-${m.id}`)?.checked;
-            if (required || optional) reqs.push({ market_id: m.id, document_type_id: newType.id, is_required: required && !optional });
-          });
-          if (reqs.length) { const { error: reqErr } = await sb.from('market_document_requirements').insert(reqs); if (reqErr) throw reqErr; }
-          overlay.remove(); showToast('Document type added.'); loadDocTypes();
-        } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Add'; }
-      }
-    });
-  });
-}
-
-function editDocType(id, name, desc, order) {
-  openModal({
-    title: 'Edit Document Type',
-    body: `
-      <div class="form-group"><label class="form-label">Name <span class="required">*</span></label><input type="text" id="edt-name" value="${name}"></div>
-      <div class="form-group"><label class="form-label">Description</label><textarea id="edt-desc" rows="2">${desc}</textarea></div>
-      <div class="form-group"><label class="form-label">Sort Order</label><input type="text" id="edt-order" value="${order}"></div>`,
-    confirmText: 'Save',
-    onConfirm: async (overlay) => {
-      const name  = document.getElementById('edt-name').value.trim();
-      const order = parseInt(document.getElementById('edt-order').value) || 99;
-      if (!name) { showToast('Name required.', 'error'); return; }
-      const btn = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const { error } = await sb.from('document_types').update({ name, description: document.getElementById('edt-desc').value.trim() || null, sort_order: order }).eq('id', id);
-        if (error) throw error;
-        overlay.remove(); showToast('Updated.'); loadDocTypes();
-      } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Save'; }
-    }
-  });
-}
-
-async function toggleDocType(id, isActive, name) {
-  if (isActive) {
-    openModal({
-      title: `Disable "${name}"?`,
-      body: `<p class="text-muted">This hides <strong>${escHtml(name)}</strong> from all product dashboards. You can re-enable it at any time.</p>`,
-      confirmText: 'Disable', confirmCls: 'btn-warning',
-      onConfirm: async (overlay) => {
-        const btn = overlay.querySelector('#modal-confirm');
-        btn.disabled = true; btn.textContent = 'Saving…';
-        try { await setDocTypeActive(id, false); overlay.remove(); showToast(`"${name}" disabled.`); loadDocTypes(); }
-        catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Disable'; }
-      }
-    });
-  } else {
-    try { await setDocTypeActive(id, true); showToast(`"${name}" re-enabled.`); loadDocTypes(); }
-    catch (err) { showToast(err.message, 'error'); }
-  }
-}
-
-async function deleteDocType(id, name) {
-  const { count } = await sb.from('documents').select('id', { count: 'exact', head: true }).eq('document_type_id', id);
-  if (count > 0) { showToast(`Cannot delete — ${count} document(s) use this type.`, 'error'); return; }
-  openModal({
-    title: 'Delete Document Type',
-    body: `<p>Delete <strong>${escHtml(name)}</strong>? This also removes its market requirements.</p>`,
-    confirmText: 'Delete', confirmCls: 'btn-danger',
-    onConfirm: async (overlay) => {
-      const btn = overlay.querySelector('#modal-confirm');
-      btn.disabled = true; btn.textContent = 'Deleting…';
-      try {
-        const { error } = await sb.from('document_types').delete().eq('id', id);
-        if (error) throw error;
-        overlay.remove(); showToast('Deleted.'); loadDocTypes();
       } catch (err) { showToast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Delete'; }
     }
   });
