@@ -505,6 +505,7 @@ function renderUsers(users, showCompany) {
           ${showCompany ? '<th>Company</th>' : ''}
           <th>Role</th>
           <th>Since</th>
+          <th style="text-align:center">AI Access</th>
           <th></th>
         </tr>
       </thead>
@@ -515,9 +516,12 @@ function renderUsers(users, showCompany) {
 }
 
 function renderUserRow(u, showCompany) {
-  const roleLabel = { admin: 'Platform Admin', org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
-  const roleCls   = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
-  const isSelf    = u.id === currentProfile.id;
+  const roleLabel  = { admin: 'Platform Admin', org_admin: 'Org Admin', user: 'User' }[u.role] || u.role;
+  const roleCls    = { admin: 'badge-danger', org_admin: 'badge-info', user: 'badge-neutral' }[u.role] || 'badge-neutral';
+  const isSelf     = u.id === currentProfile.id;
+  const isElevated = u.role === 'admin' || u.role === 'org_admin'; // always have AI
+  const aiChecked  = isElevated || u.can_use_ai;
+  const aiDisabled = isElevated ? 'disabled title="Admins always have AI access"' : '';
 
   return `
     <tr>
@@ -526,6 +530,13 @@ function renderUserRow(u, showCompany) {
       ${showCompany ? `<td class="text-sm">${escHtml(u.org_name || '—')}</td>` : ''}
       <td><span class="badge ${roleCls}">${roleLabel}</span></td>
       <td class="text-sm text-muted">${formatDate(u.created_at)}</td>
+      <td style="text-align:center">
+        <label style="cursor:${isElevated ? 'default' : 'pointer'};display:inline-flex;align-items:center;gap:6px;font-size:.85rem">
+          <input type="checkbox" ${aiChecked ? 'checked' : ''} ${aiDisabled}
+            onchange="toggleUserAi('${u.id}',this.checked,'${escHtml(u.full_name||u.email||u.id)}')">
+          <span style="color:${aiChecked ? 'var(--success)' : 'var(--text-muted)'}">${aiChecked ? 'On' : 'Off'}</span>
+        </label>
+      </td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="editUserName('${u.id}','${escHtml(u.full_name||'')}')">Edit</button>
         ${!isSelf ? `<button class="btn btn-ghost btn-sm" onclick="changeRole('${u.id}','${u.role}','${escHtml(u.full_name||u.email||u.id)}',${showCompany},${showCompany ? `'${u.org_id}'` : 'null'})">Change Role</button>` : ''}
@@ -833,9 +844,11 @@ async function toggleUserAi(userId, enabled, name) {
   try {
     await setUserAiPermission(userId, enabled);
     showToast(`AI checks ${enabled ? 'enabled' : 'disabled'} for ${name}.`);
-    // Update label text in place
-    const cb = document.querySelector(`input[onchange*="${userId}"]`);
-    if (cb) { const lbl = cb.parentElement; lbl.childNodes[1].textContent = ` ${enabled ? 'Enabled' : 'Disabled'}`; }
+    // Update in-memory state and re-render both tables
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.can_use_ai = enabled;
+    renderUsers(allUsers, currentProfile.role === 'admin');
+    if (currentProfile.role === 'org_admin') loadAiUsage(); // refresh AI Usage tab (org admins only)
   } catch (err) {
     showToast(err.message, 'error');
   }
