@@ -131,6 +131,24 @@
         </div>
       </div>
 
+      <!-- ── Products tab ─────────────────────────────────────────────────── -->
+      <div class="tab-panel" id="tab-products" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Products</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="products-company-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem">
+                <option value="">All companies</option>
+              </select>
+              <input type="text" id="products-search" placeholder="Search…" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;width:180px">
+            </div>
+          </div>
+          <div class="table-wrap" id="products-list">
+            <div class="loader-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Doc Types tab ─────────────────────────────────────────────────── -->
       <div class="tab-panel" id="tab-doctypes" style="display:none">
         <div class="card">
@@ -173,12 +191,14 @@ async function init() {
     { key: 'companies', label: '🏢 Companies' },
     { key: 'markets',   label: '🌍 Markets'   },
     { key: 'users',     label: '👥 Users'      },
+    { key: 'products',  label: '📦 Products'   },
     { key: 'doctypes',  label: '📄 Doc Types'  },
   ]);
 
   loadCompanies();
   loadMarkets();
   loadDocTypes();
+  loadAllProducts();
   await loadAllUsers();
   setupCompanyBtn();
   setupMarketBtn();
@@ -215,6 +235,7 @@ async function loadCompanies() {
     allCompanies = data || [];
     renderCompanies(allCompanies);
     populateOrgSelect(allCompanies);
+    populateProductsCompanyFilter();
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
   }
@@ -721,6 +742,79 @@ function setupInvite() {
       btn.disabled = false; btn.textContent = 'Send Invite';
     }
   });
+}
+
+// ─── Products ──────────────────────────────────────────────────────────────────
+let allProducts = [];
+
+async function loadAllProducts() {
+  const el = document.getElementById('products-list');
+  try {
+    const { data, error } = await sb
+      .from('products')
+      .select('id, name, sku, is_active, org_id, created_at')
+      .order('name');
+    if (error) throw error;
+    allProducts = data || [];
+    renderAllProducts(allProducts);
+    populateProductsCompanyFilter();
+    setupProductsFilters();
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p class="text-muted">${err.message}</p></div>`;
+  }
+}
+
+function populateProductsCompanyFilter() {
+  const sel = document.getElementById('products-company-filter');
+  if (!sel || sel.dataset.populated) return;
+  sel.dataset.populated = '1';
+  allCompanies.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+function setupProductsFilters() {
+  const filterSel  = document.getElementById('products-company-filter');
+  const searchInp  = document.getElementById('products-search');
+  if (!filterSel || filterSel.dataset.bound) return;
+  filterSel.dataset.bound = '1';
+  const apply = () => {
+    const orgId = filterSel.value;
+    const q     = searchInp.value.toLowerCase();
+    renderAllProducts(allProducts.filter(p =>
+      (!orgId || p.org_id === orgId) &&
+      (!q || p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q))
+    ));
+  };
+  filterSel.addEventListener('change', apply);
+  searchInp.addEventListener('input', apply);
+}
+
+function renderAllProducts(rows) {
+  const el = document.getElementById('products-list');
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><h3>No products found</h3></div>`;
+    return;
+  }
+  const orgMap = Object.fromEntries(allCompanies.map(c => [c.id, c.name]));
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Product</th><th>SKU</th><th>Company</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(p => `
+          <tr style="${!p.is_active ? 'opacity:.55' : ''}">
+            <td class="td-name">${escHtml(p.name)}</td>
+            <td class="text-sm text-muted">${escHtml(p.sku || '—')}</td>
+            <td class="text-sm">${escHtml(orgMap[p.org_id] || '—')}</td>
+            <td>${p.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-neutral">Inactive</span>'}</td>
+            <td class="text-sm text-muted">${formatDate(p.created_at)}</td>
+            <td><a href="product.html?id=${p.id}" class="btn btn-ghost btn-sm">View →</a></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
 // ─── Document Types ────────────────────────────────────────────────────────────

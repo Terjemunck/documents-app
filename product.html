@@ -555,7 +555,7 @@ async function doUpload(marketId, docTypeId, docTypeName) {
     await loadPage();
     // Auto-trigger AI check in the background after page re-renders
     if (doc?.id) {
-      setTimeout(() => runAiCheck(doc.id, docTypeName || 'document').catch(() => {}), 50);
+      setTimeout(() => runAiCheck(doc.id, docTypeName || 'document').catch(err => showToast('AI check: ' + err.message, 'error')), 50);
     }
   } catch (err) {
     showToast('Upload failed: ' + err.message, 'error');

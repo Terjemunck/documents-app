@@ -377,7 +377,7 @@ async function deleteCustomDocType(id, name) {
 async function loadOrgUsers() {
   const el = document.getElementById('users-list');
   try {
-    const { data, error } = await sb.from('user_profiles').select('*').order('full_name');
+    const { data, error } = await sb.from('user_profiles').select('*').eq('org_id', currentProfile.org_id).order('full_name');
     if (error) throw error;
     allUsers = data || [];
     renderUsers(allUsers);
@@ -684,7 +684,7 @@ function formatMonth(m) {
 async function loadProducts() {
   const el = document.getElementById('products-list');
   try {
-    const { data: products, error } = await sb.from('products').select('*').order('name');
+    const { data: products, error } = await sb.from('products').select('*').eq('org_id', currentProfile.org_id).order('name');
     if (error) throw error;
     if (!products.length) {
       el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><h3>No products yet</h3></div>`;
