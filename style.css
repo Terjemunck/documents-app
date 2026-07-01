@@ -729,6 +729,17 @@ textarea { resize: vertical; min-height: 80px; }
   margin-top: 4px;
 }
 
+.btn-ai-toggle {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+.btn-ai-toggle:hover { text-decoration: underline; }
+
 /* ─── Slot ⋯ menu ────────────────────────────────────────────────────────────── */
 .slot-menu-wrap { position: relative; }
 .btn-slot-menu {

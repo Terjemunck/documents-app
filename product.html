@@ -252,20 +252,9 @@ function renderDocSlot(req, doc, market, cachedCheck) {
 
 function renderCachedCheck(r) {
   if (!r) return '';
-  const result = r.result_json || {};
-  const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[r.status] || 'badge-neutral';
+  const result  = r.result_json || { summary: r.summary };
   const costStr = r.cost_usd ? ` · $${Number(r.cost_usd).toFixed(4)}` : '';
-  return `
-    <div class="ai-result-inner">
-      <div class="ai-result-header">
-        <span class="badge ${statusClass}" style="text-transform:uppercase">${r.status}</span>
-        <span class="text-sm text-muted">AI check · ${formatDate(r.checked_at)}${costStr}</span>
-      </div>
-      <p class="ai-summary">${escHtml(result.summary || r.summary || '')}</p>
-      ${result.issues && result.issues !== 'None identified.' ? `<div class="ai-section"><strong>Issues</strong><p>${escHtml(result.issues)}</p></div>` : ''}
-      ${result.recommendations && result.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(result.recommendations)}</p></div>` : ''}
-      ${result.disclaimer ? `<p class="ai-disclaimer">${escHtml(result.disclaimer)}</p>` : ''}
-    </div>`;
+  return buildAiResultHtml(r.status, formatDate(r.checked_at), costStr, result);
 }
 
 function renderDeactivatedSlot(dt, market, override) {
@@ -564,6 +553,41 @@ async function doUpload(marketId, docTypeId, docTypeName) {
   }
 }
 
+// ─── AI result rendering ──────────────────────────────────────────────────────
+
+function buildAiResultHtml(status, checkedAt, costStr, result) {
+  const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[status] || 'badge-neutral';
+  const summary  = result.summary || '';
+  const short    = summary.length > 160 ? summary.slice(0, 160).trimEnd() + '…' : summary;
+  const hasMore  = summary.length > 160 ||
+    (result.issues && result.issues !== 'None identified.') ||
+    (result.recommendations && result.recommendations !== 'None.');
+  const uid = `aid-${Math.random().toString(36).slice(2, 8)}`;
+  return `
+    <div class="ai-result-inner">
+      <div class="ai-result-header">
+        <span class="badge ${statusClass}" style="text-transform:uppercase">${status}</span>
+        <span class="text-sm text-muted">${checkedAt}${costStr}</span>
+      </div>
+      <p class="ai-summary">${escHtml(short)}</p>
+      ${hasMore ? `
+        <button class="btn-ai-toggle" onclick="toggleAiDetails('${uid}',this)">Details ▾</button>
+        <div id="${uid}" style="display:none;margin-top:8px">
+          ${summary.length > 160 ? `<p class="ai-summary" style="margin-bottom:6px">${escHtml(summary)}</p>` : ''}
+          ${result.issues && result.issues !== 'None identified.' ? `<div class="ai-section"><strong>Issues</strong><p>${escHtml(result.issues)}</p></div>` : ''}
+          ${result.recommendations && result.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(result.recommendations)}</p></div>` : ''}
+          ${result.disclaimer ? `<p class="ai-disclaimer" style="margin-top:6px">${escHtml(result.disclaimer)}</p>` : ''}
+        </div>` : ''}
+    </div>`;
+}
+
+function toggleAiDetails(id, btn) {
+  const el   = document.getElementById(id);
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  btn.textContent  = open ? 'Details ▾' : 'Details ▴';
+}
+
 // ─── AI check ─────────────────────────────────────────────────────────────────
 
 async function runAiCheck(documentId, docTypeName) {
@@ -586,19 +610,7 @@ async function runAiCheck(documentId, docTypeName) {
     if (!resp.ok || json.error) throw new Error(json.error || 'Check failed');
 
     const r = json.result;
-    const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[r.status] || 'badge-neutral';
-
-    result.innerHTML = `
-      <div class="ai-result-inner">
-        <div class="ai-result-header">
-          <span class="badge ${statusClass}" style="text-transform:uppercase">${r.status}</span>
-          <span class="text-sm text-muted">AI compliance check</span>
-        </div>
-        <p class="ai-summary">${escHtml(r.summary)}</p>
-        ${r.issues && r.issues !== 'None identified.' ? `<div class="ai-section"><strong>Issues</strong><p>${escHtml(r.issues)}</p></div>` : ''}
-        ${r.recommendations && r.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(r.recommendations)}</p></div>` : ''}
-        <p class="ai-disclaimer">${escHtml(r.disclaimer)}</p>
-      </div>`;
+    result.innerHTML = buildAiResultHtml(r.status, 'Just now', '', r);
     result.style.display = 'block';
     showToast('AI check complete.');
   } catch (err) {
