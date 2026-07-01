@@ -553,18 +553,9 @@ async function doUpload(marketId, docTypeId, docTypeName) {
     document.getElementById('upload-overlay').remove();
     showToast('Document uploaded.');
     await loadPage();
-    // Auto-trigger AI check — keep a persistent toast until it completes
+    // Auto-trigger AI check after page re-renders
     if (doc?.id) {
-      const dismissAiToast = showToast('🤖 Running AI check…', 'info', true, true);
-      setTimeout(async () => {
-        try {
-          await runAiCheck(doc.id, docTypeName || 'document');
-        } catch (err) {
-          showToast('AI check: ' + err.message, 'error');
-        } finally {
-          dismissAiToast();
-        }
-      }, 50);
+      setTimeout(() => runAiCheck(doc.id, docTypeName || 'document'), 50);
     }
   } catch (err) {
     showToast('Upload failed: ' + err.message, 'error');
@@ -617,6 +608,7 @@ async function runAiCheck(documentId, docTypeName) {
   btn.disabled = true; btn.textContent = '🤖 Checking…';
   result.style.display = 'none';
 
+  const dismissToast = showToast('🤖 Running AI check…', 'info', true, true);
   try {
     const { data: { session } } = await sb.auth.getSession();
     const resp = await fetch('/.netlify/functions/check-compliance', {
@@ -635,6 +627,7 @@ async function runAiCheck(documentId, docTypeName) {
   } catch (err) {
     showToast('AI check failed: ' + err.message, 'error');
   } finally {
+    dismissToast();
     btn.disabled = false; btn.textContent = '🤖 AI Check';
   }
 }
