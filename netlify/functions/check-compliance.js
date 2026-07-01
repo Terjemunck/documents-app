@@ -226,7 +226,7 @@ export const handler = async (event) => {
     result = parseAiResponse(aiText);
 
     // ── 9. Save to DB ────────────────────────────────────────────────────────
-    const { error: saveErr } = await sb.from('compliance_check_results').insert({
+    const { data: saved, error: saveErr } = await sb.from('compliance_check_results').insert({
       document_id,
       org_id:        doc.org_id,
       status:        result.status,
@@ -239,15 +239,16 @@ export const handler = async (event) => {
       output_tokens: outputTokens,
       cost_usd:      costUsd,
       check_type:    'document',
-    });
+    }).select('id').single();
     if (saveErr) console.error('Save error:', saveErr);
 
     return {
       statusCode: 200,
       headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        success: true,
-        result: { ...result, cost_usd: costUsd, input_tokens: inputTokens, output_tokens: outputTokens },
+        success:  true,
+        check_id: saved?.id,
+        result:   { ...result, cost_usd: costUsd, input_tokens: inputTokens, output_tokens: outputTokens },
       }),
     };
 

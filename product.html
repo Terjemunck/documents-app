@@ -262,9 +262,12 @@ function renderDocSlot(req, doc, market, cachedCheck) {
 
 function renderCachedCheck(r) {
   if (!r) return '';
-  const result  = r.result_json || { summary: r.summary };
-  const costStr = r.cost_usd ? ` · $${Number(r.cost_usd).toFixed(4)}` : '';
-  return buildAiResultHtml(r.status, formatDate(r.checked_at), costStr, result);
+  const result   = r.result_json || { summary: r.summary };
+  const costStr  = r.cost_usd ? ` · $${Number(r.cost_usd).toFixed(4)}` : '';
+  const accepted = r.accepted_at ? { by_name: r.accepted_by_name, at: r.accepted_at, note: r.acceptance_note } : null;
+  return buildAiResultHtml(r.status, formatDate(r.checked_at), costStr, result, {
+    checkId: r.id, canAccept: true, accepted,
+  });
 }
 
 function renderDeactivatedSlot(dt, market, override) {
@@ -565,7 +568,8 @@ async function doUpload(marketId, docTypeId, docTypeName) {
 
 // ─── AI result rendering ──────────────────────────────────────────────────────
 
-function buildAiResultHtml(status, checkedAt, costStr, result) {
+function buildAiResultHtml(status, checkedAt, costStr, result, opts = {}) {
+  const { checkId, canAccept, accepted } = opts;
   const statusClass = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[status] || 'badge-neutral';
   const summary  = result.summary || '';
   const short    = summary.length > 160 ? summary.slice(0, 160).trimEnd() + '…' : summary;
@@ -573,6 +577,19 @@ function buildAiResultHtml(status, checkedAt, costStr, result) {
     (result.issues && result.issues !== 'None identified.') ||
     (result.recommendations && result.recommendations !== 'None.');
   const uid = `aid-${Math.random().toString(36).slice(2, 8)}`;
+
+  const acceptedBanner = accepted
+    ? `<div style="margin-top:8px;padding:8px 12px;background:var(--success-bg,#f0fdf4);border:1px solid var(--success);border-radius:8px;font-size:.8rem">
+        <strong style="color:var(--success)">✅ Accepted by ${escHtml(accepted.by_name || 'user')}</strong>
+        <span class="text-muted"> · ${formatDate(accepted.at)}</span>
+        ${accepted.note ? `<p style="margin:4px 0 0;color:var(--text-muted)">"${escHtml(accepted.note)}"</p>` : ''}
+       </div>`
+    : '';
+
+  const acceptBtn = canAccept && !accepted && (status === 'warning' || status === 'fail') && checkId
+    ? `<button class="btn btn-ghost btn-sm" style="margin-top:6px;font-size:.78rem" onclick="openAcceptModal('${checkId}')">✓ Accept anyway</button>`
+    : '';
+
   return `
     <div class="ai-result-inner">
       <div class="ai-result-header">
@@ -588,7 +605,38 @@ function buildAiResultHtml(status, checkedAt, costStr, result) {
           ${result.recommendations && result.recommendations !== 'None.' ? `<div class="ai-section"><strong>Recommendations</strong><p>${escHtml(result.recommendations)}</p></div>` : ''}
           ${result.disclaimer ? `<p class="ai-disclaimer" style="margin-top:6px">${escHtml(result.disclaimer)}</p>` : ''}
         </div>` : ''}
+      ${acceptedBanner}
+      ${acceptBtn}
     </div>`;
+}
+
+async function openAcceptModal(checkId) {
+  openModal({
+    title: 'Accept result',
+    body: `
+      <p class="text-muted" style="margin-bottom:12px">You are overriding the AI result to <strong>Pass</strong>. Please document your reason — this is stored in the audit trail.</p>
+      <div class="form-group">
+        <label class="form-label">Reason <span class="required">*</span></label>
+        <textarea id="accept-note" rows="3" placeholder="e.g. Minor formatting issue already addressed in internal review"></textarea>
+      </div>`,
+    confirmText: 'Accept & mark as Pass',
+    onConfirm: async (overlay) => {
+      const note = document.getElementById('accept-note').value.trim();
+      if (!note) { showToast('Please provide a reason.', 'error'); return; }
+      const btn = overlay.querySelector('#modal-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const profile = await getUserProfile();
+        await acceptCheckResult(checkId, note, profile.full_name || profile.id);
+        overlay.remove();
+        showToast('Result accepted and recorded.');
+        await loadPage();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false; btn.textContent = 'Accept & mark as Pass';
+      }
+    }
+  });
 }
 
 function toggleAiDetails(id, btn) {
@@ -621,7 +669,7 @@ async function runAiCheck(documentId, docTypeName) {
     if (!resp.ok || json.error) throw new Error(json.error || 'Check failed');
 
     const r = json.result;
-    result.innerHTML = buildAiResultHtml(r.status, 'Just now', '', r);
+    result.innerHTML = buildAiResultHtml(r.status, 'Just now', '', r, { checkId: json.check_id, canAccept: true });
     result.style.display = 'block';
     showToast('AI check complete.');
   } catch (err) {

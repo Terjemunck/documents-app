@@ -446,7 +446,7 @@ async function getAiCheckSummaryByProduct() {
 
   const { data: checks } = await sb
     .from('compliance_check_results')
-    .select('document_id, status, checked_at')
+    .select('document_id, status, accepted_at, checked_at')
     .in('document_id', docIds)
     .order('checked_at', { ascending: false });
 
@@ -456,18 +456,30 @@ async function getAiCheckSummaryByProduct() {
     if (!latestByDoc[c.document_id]) latestByDoc[c.document_id] = c;
   });
 
-  // Summarise by product
+  // Summarise by product — use 'pass' if accepted
   const byProduct = {};
   docs.forEach(d => {
     if (!byProduct[d.product_id]) byProduct[d.product_id] = { pass: 0, warning: 0, fail: 0, unchecked: 0, total: 0 };
     byProduct[d.product_id].total++;
     const chk = latestByDoc[d.id];
-    if      (!chk)                  byProduct[d.product_id].unchecked++;
-    else if (chk.status === 'pass')    byProduct[d.product_id].pass++;
-    else if (chk.status === 'warning') byProduct[d.product_id].warning++;
-    else if (chk.status === 'fail')    byProduct[d.product_id].fail++;
+    const effectiveStatus = chk?.accepted_at ? 'pass' : chk?.status;
+    if      (!chk)                          byProduct[d.product_id].unchecked++;
+    else if (effectiveStatus === 'pass')    byProduct[d.product_id].pass++;
+    else if (effectiveStatus === 'warning') byProduct[d.product_id].warning++;
+    else if (effectiveStatus === 'fail')    byProduct[d.product_id].fail++;
   });
   return byProduct;
+}
+
+async function acceptCheckResult(checkId, note, userName) {
+  const user = await getCurrentUser();
+  const { error } = await sb.from('compliance_check_results').update({
+    accepted_by:      user.id,
+    accepted_at:      new Date().toISOString(),
+    acceptance_note:  note,
+    accepted_by_name: userName,
+  }).eq('id', checkId);
+  if (error) throw error;
 }
 
 // Returns all check records for this org from the last 3 months (for usage dashboard)
