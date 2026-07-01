@@ -555,7 +555,7 @@ async function doUpload(marketId, docTypeId, docTypeName) {
     await loadPage();
     // Auto-trigger AI check — keep a persistent toast until it completes
     if (doc?.id) {
-      const dismissAiToast = showToast('🤖 Running AI check…', 'info', true);
+      const dismissAiToast = showToast('🤖 Running AI check…', 'info', true, true);
       setTimeout(async () => {
         try {
           await runAiCheck(doc.id, docTypeName || 'document');

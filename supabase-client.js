@@ -547,9 +547,9 @@ function aiCheckBadge(status) {
   return `<span class="badge ${cls}">AI: ${label}</span>`;
 }
 
-function showToast(message, type = 'success', persistent = false) {
+function showToast(message, type = 'success', persistent = false, center = false) {
   const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
+  t.className = `toast toast-${type}${center ? ' toast-center' : ''}`;
   t.innerHTML = `<span>${message}</span>`;
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));

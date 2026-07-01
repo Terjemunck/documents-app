@@ -554,6 +554,17 @@ textarea { resize: vertical; min-height: 80px; }
 .toast-error { background: var(--danger); }
 .toast-warning { background: var(--warning); color: #000; }
 .toast-info { background: #2563eb; }
+.toast-center {
+  bottom: auto; right: auto;
+  top: 50%; left: 50%;
+  transform: translate(-50%, calc(-50% + 12px));
+  font-size: 1.1rem;
+  padding: 20px 36px;
+  min-width: 300px;
+  text-align: center;
+  border-radius: 14px;
+}
+.toast-center.show { transform: translate(-50%, -50%); }
 
 /* ─── Loader ─────────────────────────────────────────────────────────────────── */
 .loader-wrap {
