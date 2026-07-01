@@ -553,6 +553,7 @@ textarea { resize: vertical; min-height: 80px; }
 .toast.show { opacity: 1; transform: none; }
 .toast-error { background: var(--danger); }
 .toast-warning { background: var(--warning); color: #000; }
+.toast-info { background: #2563eb; }
 
 /* ─── Loader ─────────────────────────────────────────────────────────────────── */
 .loader-wrap {

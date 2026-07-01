@@ -551,11 +551,20 @@ async function doUpload(marketId, docTypeId, docTypeName) {
       notes:      document.getElementById('up-notes').value.trim() || null,
     });
     document.getElementById('upload-overlay').remove();
-    showToast('Document uploaded. Running AI check…');
+    showToast('Document uploaded.');
     await loadPage();
-    // Auto-trigger AI check in the background after page re-renders
+    // Auto-trigger AI check — keep a persistent toast until it completes
     if (doc?.id) {
-      setTimeout(() => runAiCheck(doc.id, docTypeName || 'document').catch(err => showToast('AI check: ' + err.message, 'error')), 50);
+      const dismissAiToast = showToast('🤖 Running AI check…', 'info', true);
+      setTimeout(async () => {
+        try {
+          await runAiCheck(doc.id, docTypeName || 'document');
+        } catch (err) {
+          showToast('AI check: ' + err.message, 'error');
+        } finally {
+          dismissAiToast();
+        }
+      }, 50);
     }
   } catch (err) {
     showToast('Upload failed: ' + err.message, 'error');

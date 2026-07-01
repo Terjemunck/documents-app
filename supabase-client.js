@@ -547,16 +547,18 @@ function aiCheckBadge(status) {
   return `<span class="badge ${cls}">AI: ${label}</span>`;
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', persistent = false) {
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.innerHTML = `<span>${message}</span>`;
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => {
+  const dismiss = () => {
     t.classList.remove('show');
     setTimeout(() => t.remove(), 300);
-  }, 3500);
+  };
+  if (!persistent) setTimeout(dismiss, 3500);
+  return dismiss;
 }
 
 async function openProfileEditor() {
