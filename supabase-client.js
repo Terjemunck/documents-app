@@ -403,6 +403,20 @@ async function getAllChecksForDocument(documentId) {
   return data;
 }
 
+// Returns all consistency check records for a product's documents
+async function getConsistencyChecksForProduct(productId) {
+  const { data: docs } = await sb.from('documents').select('id').eq('product_id', productId);
+  if (!docs?.length) return [];
+  const ids = docs.map(d => d.id);
+  const { data } = await sb
+    .from('compliance_check_results')
+    .select('*')
+    .in('document_id', ids)
+    .eq('check_type', 'consistency')
+    .order('checked_at', { ascending: false });
+  return data || [];
+}
+
 // Returns { [documentId]: latestCheckRow } for all docs belonging to a product
 async function getLatestChecksForProduct(productId) {
   const { data: docs } = await sb.from('documents').select('id').eq('product_id', productId);
@@ -605,6 +619,7 @@ function openModal({ title, body, onConfirm, confirmText = 'Confirm', confirmCls
   const overlay = document.createElement('div');
   overlay.id = 'modal-overlay';
   overlay.className = 'modal-overlay';
+  const hasConfirm = confirmText != null;
   overlay.innerHTML = `
     <div class="modal ${cls}">
       <div class="modal-header">
@@ -613,12 +628,12 @@ function openModal({ title, body, onConfirm, confirmText = 'Confirm', confirmCls
       </div>
       <div class="modal-body">${body}</div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="document.getElementById('modal-overlay').remove()">Cancel</button>
-        <button class="btn ${confirmCls}" id="modal-confirm">${confirmText}</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('modal-overlay').remove()">${hasConfirm ? 'Cancel' : 'Close'}</button>
+        ${hasConfirm ? `<button class="btn ${confirmCls}" id="modal-confirm">${confirmText}</button>` : ''}
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  if (onConfirm) {
+  if (onConfirm && hasConfirm) {
     document.getElementById('modal-confirm').addEventListener('click', () => onConfirm(overlay));
   }
   return overlay;

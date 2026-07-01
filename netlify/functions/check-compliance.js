@@ -53,13 +53,14 @@ export const handler = async (event) => {
   }
 
   // ── Parse body ─────────────────────────────────────────────────────────────
-  let document_id;
+  let document_id, document_id_b, check_type;
   try {
-    ({ document_id } = JSON.parse(event.body));
+    ({ document_id, document_id_b, check_type } = JSON.parse(event.body));
     if (!document_id) throw new Error('Missing document_id');
   } catch (err) {
     return { statusCode: 400, headers: corsHeaders(origin), body: JSON.stringify({ error: err.message }) };
   }
+  const isConsistency = check_type === 'consistency' && !!document_id_b;
 
   // ── Clients ────────────────────────────────────────────────────────────────
   const sb       = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -144,41 +145,68 @@ export const handler = async (event) => {
       return { statusCode: 403, headers: corsHeaders(origin), body: JSON.stringify({ error: 'Access denied' }) };
     }
 
-    // ── 5. Download file from Storage ────────────────────────────────────────
-    const { data: fileData, error: fileErr } = await sb.storage
-      .from('compliance-documents')
-      .download(doc.file_path);
-
-    if (fileErr || !fileData) {
-      return { statusCode: 500, headers: corsHeaders(origin), body: JSON.stringify({ error: 'Could not download file from storage' }) };
+    // ── 5. Download file(s) from Storage ────────────────────────────────────
+    async function downloadAndPrepare(d) {
+      const { data: fd, error: fe } = await sb.storage.from('compliance-documents').download(d.file_path);
+      if (fe || !fd) throw new Error('Could not download file: ' + d.file_name);
+      const buf  = Buffer.from(await fd.arrayBuffer());
+      const mime = d.file_mime_type || '';
+      if (mime === 'application/pdf') {
+        return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') } };
+      }
+      const { value: text } = await mammoth.extractRawText({ buffer: buf });
+      if (!text || text.trim().length < 50) throw new Error('Could not extract text from ' + d.file_name);
+      return { type: 'text', text: text.slice(0, 40000) };
     }
 
     // ── 6. Build message content ─────────────────────────────────────────────
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-    const mimeType   = doc.file_mime_type || '';
-    let messageContent;
+    let messageContent, result, promptText;
 
-    if (mimeType === 'application/pdf') {
-      messageContent = [
-        {
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: fileBuffer.toString('base64') },
-        },
-        { type: 'text', text: buildPrompt(doc) },
-      ];
+    if (isConsistency) {
+      // ── Consistency cross-check ─────────────────────────────────────────
+      const { data: docB } = await sb
+        .from('documents')
+        .select('*, document_types(*), markets(*), products(*)')
+        .eq('id', document_id_b)
+        .single();
+      if (!docB) return { statusCode: 404, headers: corsHeaders(origin), body: JSON.stringify({ error: 'Second document not found' }) };
+
+      const [partA, partB] = await Promise.all([downloadAndPrepare(doc), downloadAndPrepare(docB)]);
+      promptText   = buildConsistencyPrompt(doc, docB);
+      messageContent = [partA, partB, { type: 'text', text: promptText }];
+
+      const response = await anthropic.messages.create({
+        model: MODEL, max_tokens: 2048, temperature: 0,
+        messages: [{ role: 'user', content: messageContent }],
+      });
+      const aiText       = response.content[0]?.text || '';
+      const inputTokens  = response.usage?.input_tokens  || 0;
+      const outputTokens = response.usage?.output_tokens || 0;
+      const costUsd      = (inputTokens * COST_INPUT_PER_MTK + outputTokens * COST_OUTPUT_PER_MTK) / 1_000_000;
+      result = parseConsistencyResponse(aiText);
+
+      await sb.from('compliance_check_results').insert({
+        document_id, document_id_b,
+        org_id: doc.org_id, status: result.status, summary: result.summary,
+        result_json: result, model_used: MODEL, checked_by: user.id,
+        checked_at: new Date().toISOString(),
+        input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: costUsd,
+        check_type: 'consistency',
+      });
+
+      return {
+        statusCode: 200,
+        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: true, result: { ...result, cost_usd: costUsd } }),
+      };
+    }
+
+    // ── Standard document check ──────────────────────────────────────────────
+    const filePart = await downloadAndPrepare(doc);
+    if (filePart.type === 'document') {
+      messageContent = [filePart, { type: 'text', text: buildPrompt(doc) }];
     } else {
-      // Word document or plain text — extract with mammoth
-      const { value: text } = await mammoth.extractRawText({ buffer: fileBuffer });
-      if (!text || text.trim().length < 50) {
-        return {
-          statusCode: 422,
-          headers: corsHeaders(origin),
-          body: JSON.stringify({ error: 'Could not extract readable text. Is this a scanned document?' }),
-        };
-      }
-      messageContent = [
-        { type: 'text', text: buildPrompt(doc) + '\n\n---\nDOCUMENT CONTENT:\n\n' + text.slice(0, 60000) },
-      ];
+      messageContent = [{ type: 'text', text: buildPrompt(doc) + '\n\n---\nDOCUMENT CONTENT:\n\n' + filePart.text }];
     }
 
     // ── 7. Call Claude ───────────────────────────────────────────────────────
@@ -195,7 +223,7 @@ export const handler = async (event) => {
     const costUsd      = (inputTokens * COST_INPUT_PER_MTK + outputTokens * COST_OUTPUT_PER_MTK) / 1_000_000;
 
     // ── 8. Parse AI response ─────────────────────────────────────────────────
-    const result = parseAiResponse(aiText);
+    result = parseAiResponse(aiText);
 
     // ── 9. Save to DB ────────────────────────────────────────────────────────
     const { error: saveErr } = await sb.from('compliance_check_results').insert({
@@ -263,6 +291,69 @@ RECOMMENDATIONS:
 [Specific actionable suggestions to address the issues above. If none, write "None."]
 
 DISCLAIMER: This AI assessment checks document structure and completeness against known regulatory requirements. It does not replace a qualified Responsible Person or safety assessor. Regulatory updates must be tracked manually.`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Consistency cross-check prompt
+// ─────────────────────────────────────────────────────────────────────────────
+const PAIR_INSTRUCTIONS = {
+  'CPSR|INCI':       'Verify that every ingredient in the INCI declaration appears in the CPSR safety assessment with consistent concentrations and functions. Flag any ingredient present in one document but absent or differently described in the other.',
+  'INCI|STABILITY':  'Verify that the product composition in the stability test matches the INCI ingredient list exactly. Flag any discrepancies in ingredient identity, concentration, or formulation details.',
+  'CLAIMS|CPSR':     'Verify that every marketing or on-pack claim is substantiated by the safety conclusions in the CPSR. Flag any claim the safety assessment does not explicitly support.',
+  'INCI|MARKET_REG': 'Verify that the INCI ingredient declaration matches the ingredient information in the market registration. Flag any discrepancies in ingredient names, concentrations, or INCI naming conventions.',
+};
+
+function buildConsistencyPrompt(docA, docB) {
+  const codeA    = docA.document_types?.code || '';
+  const codeB    = docB.document_types?.code || '';
+  const pairKey  = [codeA, codeB].sort().join('|');
+  const instructions = PAIR_INSTRUCTIONS[pairKey] ||
+    'Cross-check these two documents for regulatory consistency. Flag any discrepancies.';
+
+  return `You are a regulatory compliance expert specialising in cosmetics.
+
+You are cross-checking two documents for the product "${docA.products?.name || 'Unknown'}" in the ${docA.markets?.name || 'Unknown'} market.
+
+Document A: ${docA.document_types?.name || 'Document A'}
+Document B: ${docB.document_types?.name || 'Document B'}
+
+${instructions}
+
+Respond in the following exact format:
+
+STATUS: [MATCH | PARTIAL | MISMATCH]
+
+SUMMARY:
+[2–3 sentence plain-English summary of overall consistency between the two documents.]
+
+DISCREPANCIES:
+[List specific inconsistencies found. If none, write "None identified."]
+
+RECOMMENDATIONS:
+[What to update or verify to resolve any discrepancies. If none, write "None."]
+
+DISCLAIMER: This AI cross-check identifies potential inconsistencies between document pairs. Always verify findings with a qualified regulatory expert before market submission.`;
+}
+
+function parseConsistencyResponse(text) {
+  const get = (label, nextLabel) => {
+    const re = new RegExp(`${label}:\\s*([\\s\\S]*?)(?=\\n${nextLabel}:|$)`, 'i');
+    return (text.match(re)?.[1] || '').trim();
+  };
+  const rawStatus = get('STATUS', 'SUMMARY').toUpperCase();
+  let status = 'warning';
+  if (rawStatus.includes('MISMATCH'))                                     status = 'fail';
+  else if (rawStatus.includes('PARTIAL'))                                 status = 'warning';
+  else if (rawStatus.includes('MATCH') && !rawStatus.includes('PARTIAL')) status = 'pass';
+  return {
+    status,
+    summary:         get('SUMMARY',         'DISCREPANCIES'),
+    issues:          get('DISCREPANCIES',    'RECOMMENDATIONS'),
+    recommendations: get('RECOMMENDATIONS', 'DISCLAIMER'),
+    disclaimer:      get('DISCLAIMER',       '~~~~'),
+    raw:             text,
+    checked_at:      new Date().toISOString(),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

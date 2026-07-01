@@ -76,7 +76,8 @@ let requirements = [];
 let documents    = [];
 let overrides    = [];
 let attachments  = [];
-let checks       = {}; // { [documentId]: latestCheckRow }
+let checks             = {}; // { [documentId]: latestCheckRow }
+let consistencyChecks  = []; // all consistency check records for this product
 
 async function init() {
   if (!productId) { window.location.href = 'dashboard.html'; return; }
@@ -113,7 +114,8 @@ async function loadPage() {
     documents    = docs;
     overrides    = ovr;
     attachments  = att;
-    checks       = await getLatestChecksForProduct(productId);
+    checks            = await getLatestChecksForProduct(productId);
+    consistencyChecks = await getConsistencyChecksForProduct(productId);
 
     document.getElementById('product-title').textContent    = product.name;
     document.getElementById('breadcrumb-name').textContent  = product.name;
@@ -156,6 +158,7 @@ function renderMarketSection(market) {
         <span class="market-tag">${market.code}</span>
       </div>
       <div class="doc-grid">${slots.join('')}</div>
+      ${renderCrossChecks(market, reqs)}
     </div>`;
 }
 
@@ -236,6 +239,7 @@ function renderDocSlot(req, doc, market, cachedCheck) {
         <button class="btn btn-secondary btn-sm" onclick="downloadDoc('${doc.file_path}','${escAttr(doc.file_name)}')">⬇ Download</button>
         <button class="btn btn-secondary btn-sm" onclick="openUpload('${safeMarket}','${safeDt}','${safeDtName}','${escAttr(dt.code)}',true)">↩ Replace</button>
         <button class="btn btn-secondary btn-sm" id="ai-btn-${doc.id}" onclick="runAiCheck('${doc.id}','${safeDtName}')">🤖 AI Check</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAiHistory('${doc.id}','${safeDtName}')">History</button>
       ` : `
         <button class="btn btn-primary btn-sm" onclick="openUpload('${safeMarket}','${safeDt}','${safeDtName}','${escAttr(dt.code)}',false)">⬆ Upload</button>
       `}
@@ -617,6 +621,132 @@ async function runAiCheck(documentId, docTypeName) {
     showToast('AI check failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false; btn.textContent = '🤖 AI Check';
+  }
+}
+
+// ─── Cross-checks ─────────────────────────────────────────────────────────────
+
+const CROSS_PAIRS = [
+  { a: 'INCI', b: 'CPSR',       label: 'INCI ↔ CPSR',                desc: 'Ingredient list vs safety assessment' },
+  { a: 'INCI', b: 'STABILITY',  label: 'INCI ↔ Stability',           desc: 'Ingredient list vs stability test' },
+  { a: 'CPSR', b: 'CLAIMS',     label: 'CPSR ↔ Claims',              desc: 'Safety conclusions vs marketing claims' },
+  { a: 'INCI', b: 'MARKET_REG', label: 'INCI ↔ Market Registration', desc: 'Ingredient list vs registration submission' },
+];
+
+function renderCrossChecks(market, reqs) {
+  // Build code → document map for this market
+  const byCode = {};
+  reqs.forEach(req => {
+    const code = req.document_types?.code;
+    const doc  = documents.find(d =>
+      d.market_id === market.id &&
+      d.document_type_id === req.document_type_id &&
+      d.status !== 'pending_upload'
+    );
+    if (code && doc) byCode[code] = doc;
+  });
+
+  const available = CROSS_PAIRS.filter(p => byCode[p.a] && byCode[p.b]);
+  if (!available.length) return '';
+
+  const rows = available.map(pair => {
+    const docA   = byCode[pair.a];
+    const docB   = byCode[pair.b];
+    const chkA   = checks[docA.id];
+    const chkB   = checks[docB.id];
+    const hasIssue = (chkA && chkA.status !== 'pass') || (chkB && chkB.status !== 'pass');
+
+    // Find latest consistency check for this pair
+    const xc = consistencyChecks.find(c =>
+      (c.document_id === docA.id && c.document_id_b === docB.id) ||
+      (c.document_id === docB.id && c.document_id_b === docA.id)
+    );
+
+    const uid = `xc-${docA.id.slice(0,6)}-${docB.id.slice(0,6)}`;
+    let statusHtml;
+    if (!xc) {
+      statusHtml = `<span class="text-muted text-sm">○ Not run</span>`;
+    } else {
+      const cls   = { pass: 'badge-success', warning: 'badge-warning', fail: 'badge-danger' }[xc.status] || 'badge-neutral';
+      const label = { pass: 'Match', warning: 'Partial', fail: 'Mismatch' }[xc.status] || xc.status;
+      const cost  = xc.cost_usd ? ` · $${Number(xc.cost_usd).toFixed(4)}` : '';
+      const res   = xc.result_json || { summary: xc.summary };
+      statusHtml  = `
+        <span class="badge ${cls}" style="text-transform:capitalize">${label}</span>
+        <span class="text-sm text-muted">${formatDate(xc.checked_at)}${cost}</span>
+        <button class="btn-ai-toggle" onclick="toggleAiDetails('${uid}',this)">Details ▾</button>
+        <div id="${uid}" style="display:none;margin-top:8px">${buildAiResultHtml(xc.status, formatDate(xc.checked_at), cost, res)}</div>`;
+    }
+
+    return `
+      <div class="crosscheck-row">
+        <div class="crosscheck-info">
+          <span class="crosscheck-label">${pair.label}</span>
+          <span class="crosscheck-desc">${pair.desc}</span>
+          ${hasIssue ? `<span class="crosscheck-warn">⚠ one or more docs has unresolved issues</span>` : ''}
+        </div>
+        <div class="crosscheck-status">${statusHtml}</div>
+        <button class="btn btn-secondary btn-sm" onclick="runCrossCheck('${docA.id}','${docB.id}','${pair.label}',this)">
+          ${xc ? '↩ Re-run' : 'Run'}
+        </button>
+      </div>`;
+  });
+
+  return `
+    <div class="crosscheck-section">
+      <div class="crosscheck-heading">🔗 Cross-checks</div>
+      ${rows.join('')}
+    </div>`;
+}
+
+async function runCrossCheck(docIdA, docIdB, pairLabel, btn) {
+  const origText = btn.textContent.trim();
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch('/.netlify/functions/check-compliance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ document_id: docIdA, document_id_b: docIdB, check_type: 'consistency' }),
+    });
+    const json = await resp.json();
+    if (!resp.ok || json.error) throw new Error(json.error || 'Cross-check failed');
+    showToast(`Cross-check complete — ${pairLabel}`);
+    await loadPage();
+  } catch (err) {
+    showToast('Cross-check failed: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = origText;
+  }
+}
+
+// ─── AI check history modal ────────────────────────────────────────────────────
+
+async function openAiHistory(documentId, docTypeName) {
+  const overlay = openModal({
+    title:       `AI Check History — ${docTypeName}`,
+    cls:         'modal-lg',
+    body:        '<div class="loader-wrap"><div class="spinner"></div><p>Loading history…</p></div>',
+    confirmText: null,
+  });
+  try {
+    const history = await getAllChecksForDocument(documentId);
+    const bodyEl  = overlay.querySelector('.modal-body');
+    if (!history.length) {
+      bodyEl.innerHTML = `<div class="empty-state"><p class="text-muted">No AI checks recorded for this document yet.</p></div>`;
+      return;
+    }
+    bodyEl.innerHTML = history.map((r, i) => {
+      const result  = r.result_json || { summary: r.summary };
+      const costStr = r.cost_usd ? ` · $${Number(r.cost_usd).toFixed(4)}` : '';
+      const typeTag = r.check_type === 'consistency'
+        ? `<span class="badge badge-neutral" style="font-size:.7rem;margin-left:6px">cross-check</span>` : '';
+      return `<div style="padding:${i > 0 ? '16px 0 0' : '0'};${i < history.length - 1 ? 'border-bottom:1px solid var(--border);padding-bottom:16px' : ''}">
+        <div style="margin-bottom:6px;font-size:.8rem;color:var(--text-muted)">${formatDate(r.checked_at)}${typeTag}</div>
+        ${buildAiResultHtml(r.status, formatDate(r.checked_at), costStr, result)}
+      </div>`;
+    }).join('');
+  } catch (err) {
+    showToast('Failed to load history: ' + err.message, 'error');
   }
 }
 

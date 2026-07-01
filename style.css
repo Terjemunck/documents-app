@@ -749,6 +749,59 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .btn-ai-toggle:hover { text-decoration: underline; }
 
+/* ─── Cross-checks ───────────────────────────────────────────────────────────── */
+.crosscheck-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.crosscheck-heading {
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.crosscheck-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.crosscheck-row:first-of-type { border-top: none; padding-top: 0; }
+.crosscheck-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.crosscheck-label {
+  font-size: .875rem;
+  font-weight: 600;
+}
+.crosscheck-desc {
+  font-size: .78rem;
+  color: var(--text-muted);
+}
+.crosscheck-warn {
+  font-size: .75rem;
+  color: var(--warning);
+  margin-top: 2px;
+}
+.crosscheck-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .85rem;
+  min-width: 0;
+  flex: 1.5;
+}
+
 /* ─── Slot ⋯ menu ────────────────────────────────────────────────────────────── */
 .slot-menu-wrap { position: relative; }
 .btn-slot-menu {
