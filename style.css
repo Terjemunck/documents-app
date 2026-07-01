@@ -729,6 +729,15 @@ textarea { resize: vertical; min-height: 80px; }
   margin-top: 4px;
 }
 
+.group-header-row td {
+  background: var(--surface-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 16px;
+  color: var(--text-2);
+  letter-spacing: .02em;
+}
+
 .btn-ai-toggle {
   background: none;
   border: none;

@@ -184,7 +184,8 @@ export const handler = async (event) => {
     // ── 7. Call Claude ───────────────────────────────────────────────────────
     const response = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
+      temperature: 0,
       messages: [{ role: 'user', content: messageContent }],
     });
 

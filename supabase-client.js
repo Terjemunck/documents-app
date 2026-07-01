@@ -418,6 +418,44 @@ async function getLatestChecksForProduct(productId) {
   return latest;
 }
 
+// Returns { [productId]: { pass, warning, fail, unchecked, total } } for the dashboard AI column
+async function getAiCheckSummaryByProduct() {
+  const { data: docs } = await sb
+    .from('documents')
+    .select('id, product_id')
+    .eq('status', 'current');
+  if (!docs?.length) return {};
+
+  const docIds        = docs.map(d => d.id);
+  const docToProduct  = {};
+  docs.forEach(d => { docToProduct[d.id] = d.product_id; });
+
+  const { data: checks } = await sb
+    .from('compliance_check_results')
+    .select('document_id, status, checked_at')
+    .in('document_id', docIds)
+    .order('checked_at', { ascending: false });
+
+  // Latest check per document
+  const latestByDoc = {};
+  (checks || []).forEach(c => {
+    if (!latestByDoc[c.document_id]) latestByDoc[c.document_id] = c;
+  });
+
+  // Summarise by product
+  const byProduct = {};
+  docs.forEach(d => {
+    if (!byProduct[d.product_id]) byProduct[d.product_id] = { pass: 0, warning: 0, fail: 0, unchecked: 0, total: 0 };
+    byProduct[d.product_id].total++;
+    const chk = latestByDoc[d.id];
+    if      (!chk)                  byProduct[d.product_id].unchecked++;
+    else if (chk.status === 'pass')    byProduct[d.product_id].pass++;
+    else if (chk.status === 'warning') byProduct[d.product_id].warning++;
+    else if (chk.status === 'fail')    byProduct[d.product_id].fail++;
+  });
+  return byProduct;
+}
+
 // Returns all check records for this org from the last 3 months (for usage dashboard)
 async function getAiUsageSummary() {
   const since = new Date();

@@ -123,7 +123,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script>
-let allRows = [];
+let allRows  = [];
+let aiChecks = {};
 
 async function init() {
   const session = await requireAuth();
@@ -149,8 +150,12 @@ async function loadDashboard() {
   showLoader(tableEl, 'Loading compliance data…');
 
   try {
-    const rows = await getComplianceSummary();
-    allRows = rows;
+    const [rows, aiData] = await Promise.all([
+      getComplianceSummary(),
+      getAiCheckSummaryByProduct(),
+    ]);
+    allRows  = rows;
+    aiChecks = aiData;
     renderStats(rows);
     renderTable(rows);
   } catch (err) {
@@ -179,6 +184,15 @@ function renderStats(rows) {
   document.getElementById('stat-outdated').textContent  = outdated;
 }
 
+const STATUS_RANK = { outdated: 0, incomplete: 1, unchecked: 2, complete: 3 };
+
+function productGroup(marketList) {
+  const statuses = marketList.map(m => m.compliance_status);
+  if (statuses.some(s => s === 'outdated'))                          return 'outdated';
+  if (statuses.some(s => s === 'incomplete' || s === 'unchecked'))   return 'incomplete';
+  return 'complete';
+}
+
 function renderTable(rows) {
   const tableEl = document.getElementById('products-table');
 
@@ -202,38 +216,50 @@ function renderTable(rows) {
     return;
   }
 
-  const html = `
+  const GROUPS = [
+    { key: 'outdated',   label: '🔴 Outdated'   },
+    { key: 'incomplete', label: '⚠️ Incomplete'  },
+    { key: 'complete',   label: '✅ Complete'    },
+  ];
+
+  // Assign each product to a group
+  const grouped = { outdated: [], incomplete: [], complete: [] };
+  products.forEach(p => grouped[productGroup(Object.values(p.markets))].push(p));
+
+  // Build tbody rows — group header + product rows
+  const bodyRows = GROUPS.flatMap(g => {
+    const list = grouped[g.key];
+    if (!list.length) return [];
+    return [
+      `<tr class="group-header-row"><td colspan="7">${g.label} <span style="font-weight:400;opacity:.7">(${list.length})</span></td></tr>`,
+      ...list.map(p => renderProductRow(p, aiChecks[p.id])),
+    ];
+  });
+
+  tableEl.innerHTML = `
     <table>
       <thead>
         <tr>
           <th>Product</th>
           <th>SKU</th>
-          <th>Overall Status</th>
+          <th>Status</th>
           <th>Markets</th>
           <th>Docs</th>
+          <th>AI Checks</th>
           <th></th>
         </tr>
       </thead>
-      <tbody id="products-tbody">
-        ${products.map(p => renderProductRow(p)).join('')}
-      </tbody>
+      <tbody>${bodyRows.join('')}</tbody>
     </table>`;
-  tableEl.innerHTML = html;
 }
 
-const STATUS_RANK = { outdated: 0, incomplete: 1, unchecked: 2, complete: 3 };
-
-function renderProductRow(p) {
-  const marketList = Object.values(p.markets);
-  // Worst status across all markets
-  const worstStatus = marketList.reduce((worst, m) => {
-    return (STATUS_RANK[m.compliance_status] ?? 4) < (STATUS_RANK[worst] ?? 4)
-      ? m.compliance_status : worst;
-  }, 'complete');
-  // Aggregate docs
+function renderProductRow(p, ai) {
+  const marketList  = Object.values(p.markets);
+  const worstStatus = marketList.reduce((worst, m) =>
+    (STATUS_RANK[m.compliance_status] ?? 4) < (STATUS_RANK[worst] ?? 4) ? m.compliance_status : worst
+  , 'complete');
   const docsPresent = marketList.reduce((s, m) => s + (m.docs_present || 0), 0);
   const docsTotal   = marketList.reduce((s, m) => s + (m.total_required || 0), 0);
-  // Market code pills
   const marketPills = marketList.map(m =>
     `<span style="display:inline-block;padding:1px 6px;border-radius:9px;background:var(--surface-2);font-size:.75rem;color:var(--text-muted)">${m.market_code}</span>`
   ).join(' ');
@@ -245,10 +271,19 @@ function renderProductRow(p) {
       <td>${marketList.length ? complianceBadge(worstStatus) : '<span class="badge badge-neutral">—</span>'}</td>
       <td>${marketPills || '<span class="text-muted text-sm">None</span>'}</td>
       <td><span class="text-sm text-muted">${docsTotal ? `${docsPresent}/${docsTotal}` : '—'}</span></td>
-      <td>
-        <a href="product.html?id=${p.id}" class="btn btn-secondary btn-sm">View →</a>
-      </td>
+      <td>${renderAiCheckCell(ai)}</td>
+      <td><a href="product.html?id=${p.id}" class="btn btn-secondary btn-sm">View →</a></td>
     </tr>`;
+}
+
+function renderAiCheckCell(ai) {
+  if (!ai || ai.total === 0) return '<span class="text-muted text-sm">—</span>';
+  const parts = [];
+  if (ai.pass > 0)      parts.push(`<span style="color:var(--success);font-weight:500">✓ ${ai.pass}</span>`);
+  if (ai.warning > 0)   parts.push(`<span style="color:var(--warning);font-weight:500">⚠ ${ai.warning}</span>`);
+  if (ai.fail > 0)      parts.push(`<span style="color:var(--danger);font-weight:500">✗ ${ai.fail}</span>`);
+  if (ai.unchecked > 0) parts.push(`<span class="text-muted">○ ${ai.unchecked}</span>`);
+  return `<span class="text-sm" style="display:flex;gap:8px;align-items:center">${parts.join('')}</span>`;
 }
 
 function setupSearch() {
